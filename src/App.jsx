@@ -1,80 +1,33 @@
-import { useState, useEffect } from 'react'
-import { collection, getDocs } from 'firebase/firestore'
-import { db } from './db/firebase'
+import { Routes, Route, Link } from 'react-router-dom'
+import CreateProducts from './pages/createProducts/CreateProducts'
+import ProductList from './pages/productList/ProductList'
 import './App.css'
 
 function App() {
-  const [productos, setProductos] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const obtenerProductos = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'productos'))
-        const docs = []
-        querySnapshot.forEach((doc) => {
-          docs.push({ ...doc.data(), id: doc.id })
-        })
-        setProductos(docs)
-      } catch (error) {
-        console.error("Error al obtener productos:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    obtenerProductos()
-  }, [])
-
   return (
-    <div className="App">
-      <h1>¡Hola Mundo!</h1>
-      <h2>Lista de Productos</h2>
+    <div className="App" style={{ display: 'flex', minHeight: '100vh' }}>
+      {/* Placeholder para el Sidebar futuro */}
+      <nav style={{ width: '200px', backgroundColor: '#1a1a1a', padding: '20px', borderRight: '1px solid #333' }}>
+        <h3>Menú</h3>
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          <li style={{ marginBottom: '10px' }}>
+            <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>📦 Productos</Link>
+          </li>
+          <li style={{ marginBottom: '10px' }}>
+            <Link to="/crear" style={{ color: 'white', textDecoration: 'none' }}>➕ Crear Producto</Link>
+          </li>
+        </ul>
+      </nav>
 
-      {loading ? (
-        <p>Cargando productos...</p>
-      ) : (
-        <div style={{ padding: '20px', overflowX: 'auto' }}>
-          <table border="1" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', color: 'white' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#333' }}>
-                <th>Imagen</th>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Marca</th>
-                <th>Categoría</th>
-                <th>Precio</th>
-                <th>Precio Original</th>
-                <th>Stock</th>
-              </tr>
-            </thead>
-            <tbody>
-              {productos.map((producto) => (
-                <tr key={producto.id}>
-                  <td style={{ padding: '10px' }}>
-                    <img 
-                      src={producto.imagenProducto} 
-                      alt={producto.nombreProducto} 
-                      style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '4px' }} 
-                    />
-                  </td>
-                  <td style={{ padding: '10px' }}>{producto.idProducto || producto.id}</td>
-                  <td style={{ padding: '10px' }}>{producto.nombreProducto}</td>
-                  <td style={{ padding: '10px' }}>{producto.marcaProducto}</td>
-                  <td style={{ padding: '10px' }}>{producto.categoriaProducto}</td>
-                  <td style={{ padding: '10px' }}>${producto.precioProducto}</td>
-                  <td style={{ padding: '10px', textDecoration: 'line-through', color: '#888' }}>
-                    ${producto.precioOriginal}
-                  </td>
-                  <td style={{ padding: '10px' }}>{producto.cantidadProducto}</td>
-                </tr>
-              ))}
-            </tbody>
-
-          </table>
-        </div>
-      )}
-
+      {/* Contenido Principal */}
+      <main style={{ flex: 1, padding: '20px' }}>
+        <h1>Gestión de Montino App</h1>
+        
+        <Routes>
+          <Route path="/" element={<ProductList />} />
+          <Route path="/crear" element={<CreateProducts onProductCreated={() => window.location.href = '/'} />} />
+        </Routes>
+      </main>
     </div>
   )
 }
