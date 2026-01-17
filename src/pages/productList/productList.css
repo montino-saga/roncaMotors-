@@ -1,0 +1,133 @@
+/* ===== HEADER ===== */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 8px 24px 20px;
+  }
+  
+  .header h2 {
+    margin: 0;
+  }
+  
+  /* ===== TOOLBAR ===== */
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+  }
+  
+  /* ===== SELECT ===== */
+  .select-wrapper {
+    position: relative;
+    width: 220px;
+  }
+  
+  .order-select {
+    width: 100%;
+    padding: 12px 42px 12px 16px;
+    border-radius: 14px;
+    background-color: #020617; /* fondo sólido */
+    color: #e5e7eb;
+    border: 1px solid #374151;
+    font-size: 0.9rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+  }
+  
+  /* 👇 ESTO ES LO QUE ARREGLA EL BLANCO */
+  .order-select option {
+    background-color: #020617;
+    color: #e5e7eb;
+  }
+  
+  /* opción seleccionada */
+  .order-select option:checked {
+    background-color: #1f2937;
+    color: #ffffff;
+  }
+  
+  .select-arrow {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #9ca3af;
+    font-size: 0.75rem;
+  }
+  
+  /* ===== TABLA ===== */
+  .table-container {
+    padding: 24px;
+    overflow-x: auto;
+  }
+  
+  .product-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: linear-gradient(180deg, #1a1a1a, #121212);
+    border-radius: 18px;
+    overflow: hidden;
+    color: #eaeaea;
+    box-shadow: 0 14px 45px rgba(0, 0, 0, 0.7);
+  }
+  
+  .product-table thead {
+    background: linear-gradient(90deg, #2f2f2f, #1c1c1c);
+  }
+  
+  .product-table th {
+    padding: 16px;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #bfbfbf;
+  }
+  
+  .product-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  
+  .product-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+  }
+  
+  /* ===== IMAGEN ===== */
+  .product-image {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    object-fit: cover;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+  }
+  
+  /* ===== TEXTO ===== */
+  .name {
+    font-weight: 600;
+  }
+  
+  .category {
+    background: rgba(59, 130, 246, 0.15);
+    color: #93c5fd;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+  }
+  
+  .price {
+    color: #4ade80;
+    font-weight: 600;
+  }
+  
+  .original {
+    text-decoration: line-through;
+    color: #888;
+  }
+  
+  .stock {
+    font-weight: 600;
+  }
+  
