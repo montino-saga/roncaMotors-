@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
+import { usePersistedState } from '../../hooks/usePersistedState'
 import { collection, getDocs, orderBy, query, where, doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Modal } from '../../components/ui/Modal'
 import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, X } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { cn, formatCLP } from '../../lib/utils'
 import { toast } from 'sonner'
 import { Button } from '../../components/ui/Button'
 
@@ -13,7 +14,7 @@ function SalesHistory() {
     const [loading, setLoading] = useState(true)
     const [selectedSale, setSelectedSale] = useState(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const [selectedDate, setSelectedDate] = useState(() => {
+    const [selectedDate, setSelectedDate] = usePersistedState('montino_sales_date', () => {
         const now = new Date()
         const year = now.getFullYear()
         const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -22,17 +23,12 @@ function SalesHistory() {
     })
 
     // Payment Filter & Edit State
-    const [paymentFilter, setPaymentFilter] = useState('todos')
+    const [paymentFilter, setPaymentFilter] = usePersistedState('montino_sales_filter', 'todos')
     const [isEditingPayment, setIsEditingPayment] = useState(false)
     const [newPaymentMethod, setNewPaymentMethod] = useState('')
 
-    // Format currency to CLP
-    const formatCLP = (amount) => {
-        return new Intl.NumberFormat('es-CL', {
-            style: 'currency',
-            currency: 'CLP'
-        }).format(amount)
-    }
+
+    const getLocalPrice = (prod) => Number(prod?.precioVentaLocal ?? prod?.precioProducto ?? 0)
 
     // Format date
     const formatDate = (timestamp) => {
@@ -281,11 +277,11 @@ function SalesHistory() {
                                         <div>
                                             <p className="text-white font-medium">{prod.nombreProducto}</p>
                                             <p className="text-xs text-slate-400">
-                                                {prod.cantidad} x {formatCLP(prod.precioProducto)}
+                                                {prod.cantidad} x {formatCLP(getLocalPrice(prod))}
                                             </p>
                                         </div>
                                         <p className="text-white font-medium">
-                                            {formatCLP(prod.cantidad * prod.precioProducto)}
+                                            {formatCLP(prod.cantidad * getLocalPrice(prod))}
                                         </p>
                                     </div>
                                 ))}

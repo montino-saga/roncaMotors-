@@ -17,6 +17,8 @@ function Sales() {
     const [paymentType, setPaymentType] = useState('efectivo')
     const inputRef = useRef(null)
 
+    const getLocalPrice = (item) => Number(item?.precioVentaLocal ?? item?.precioProducto ?? 0)
+
     // Stock Adjustment Modal State
     const [isStockModalOpen, setIsStockModalOpen] = useState(false)
     const [pendingProduct, setPendingProduct] = useState(null)
@@ -163,13 +165,13 @@ function Sales() {
     }
 
     const calculateTotal = () => {
-        return cart.reduce((total, item) => total + (item.precioProducto * item.cantidad), 0)
+        return cart.reduce((total, item) => total + (getLocalPrice(item) * item.cantidad), 0)
     }
 
     const calculateProfit = () => {
         return cart.reduce((total, item) => {
             const cost = item.precioOriginal || 0
-            const price = item.precioProducto || 0
+            const price = getLocalPrice(item)
             return total + ((price - cost) * item.cantidad)
         }, 0)
     }
@@ -191,7 +193,9 @@ function Sales() {
                     nombreProducto: item.nombreProducto,
                     marcaProducto: item.marcaProducto || '',
                     categoriaProducto: item.categoriaProducto || '',
-                    precioProducto: Number(item.precioProducto),
+                    precioVentaLocal: Number(getLocalPrice(item)),
+                    precioVentaWeb: Number(item.precioVentaWeb || 0),
+                    precioProducto: Number(getLocalPrice(item)),
                     precioOriginal: Number(item.precioOriginal || 0),
                     cantidadProducto: Number(item.cantidadProducto || 0),
                     cantidad: item.cantidad
@@ -390,8 +394,8 @@ function Sales() {
                                         </div>
 
                                         <div className="text-right min-w-[80px]">
-                                            <p className="font-bold text-white">${(item.precioProducto * item.cantidad).toLocaleString()}</p>
-                                            <p className="text-xs text-slate-500">${item.precioProducto} c/u</p>
+                                            <p className="font-bold text-white">${(getLocalPrice(item) * item.cantidad).toLocaleString('es-CL')}</p>
+                                            <p className="text-xs text-slate-500">${getLocalPrice(item).toLocaleString('es-CL')} c/u</p>
                                         </div>
 
                                         <button

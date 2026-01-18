@@ -12,33 +12,7 @@ export function ImageUpload({ onImageUploaded, currentImage, className }) {
     const [dragActive, setDragActive] = useState(false)
     const [progress, setProgress] = useState(0)
 
-    const handleDrag = useCallback((e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        if (e.type === "dragenter" || e.type === "dragover") {
-            setDragActive(true)
-        } else if (e.type === "dragleave") {
-            setDragActive(false)
-        }
-    }, [])
-
-    const handleDrop = useCallback((e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setDragActive(false)
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            handleFile(e.dataTransfer.files[0])
-        }
-    }, [])
-
-    const handleChange = (e) => {
-        e.preventDefault()
-        if (e.target.files && e.target.files[0]) {
-            handleFile(e.target.files[0])
-        }
-    }
-
-    const handleFile = async (file) => {
+    const handleFile = useCallback(async (file) => {
         if (!file.type.startsWith('image/')) {
             toast.error('Por favor selecciona un archivo de imagen válido')
             return
@@ -83,6 +57,32 @@ export function ImageUpload({ onImageUploaded, currentImage, className }) {
         } finally {
             setUploading(false)
             setProgress(0)
+        }
+    }, [onImageUploaded])
+
+    const handleDrag = useCallback((e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true)
+        } else if (e.type === "dragleave") {
+            setDragActive(false)
+        }
+    }, [])
+
+    const handleDrop = useCallback((e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setDragActive(false)
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFile(e.dataTransfer.files[0])
+        }
+    }, [handleFile])
+
+    const handleChange = (e) => {
+        e.preventDefault()
+        if (e.target.files && e.target.files[0]) {
+            handleFile(e.target.files[0])
         }
     }
 

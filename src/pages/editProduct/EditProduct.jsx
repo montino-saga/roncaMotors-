@@ -3,6 +3,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
+import { CurrencyInput } from '../../components/ui/CurrencyInput'
 import { Button } from '../../components/ui/Button'
 import { ImageUpload } from '../../components/ui/ImageUpload'
 import { Save, ArrowLeft } from 'lucide-react'
@@ -17,7 +18,8 @@ function EditProduct() {
         nombreProducto: '',
         marcaProducto: '',
         categoriaProducto: '',
-        precioProducto: '',
+        precioVentaLocal: '',
+        precioVentaWeb: '',
         precioOriginal: '',
         cantidadProducto: '',
         imagenProducto: '',
@@ -31,7 +33,13 @@ function EditProduct() {
                 const docSnap = await getDoc(docRef)
 
                 if (docSnap.exists()) {
-                    setProducto({ ...docSnap.data(), id: docSnap.id })
+                    const data = docSnap.data()
+                    setProducto({
+                        ...data,
+                        id: docSnap.id,
+                        precioVentaLocal: data.precioVentaLocal ?? data.precioProducto ?? '',
+                        precioVentaWeb: data.precioVentaWeb ?? ''
+                    })
                 } else {
                     toast.error('Producto no encontrado')
                     navigate('/')
@@ -60,9 +68,11 @@ function EditProduct() {
             const docRef = doc(db, 'productos', id)
             await updateDoc(docRef, {
                 ...producto,
-                precioProducto: Number(producto.precioProducto),
+                precioVentaLocal: Number(producto.precioVentaLocal),
+                precioVentaWeb: Number(producto.precioVentaWeb),
                 precioOriginal: Number(producto.precioOriginal),
-                cantidadProducto: Number(producto.cantidadProducto)
+                cantidadProducto: Number(producto.cantidadProducto),
+                precioProducto: Number(producto.precioVentaLocal)
             })
             toast.success('Producto actualizado con éxito')
             navigate('/')
@@ -100,82 +110,111 @@ function EditProduct() {
                 <form onSubmit={handleSubmit}>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Left Column: Form Fields */}
-                        <div className="lg:col-span-2 space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">Nombre del Producto</label>
-                                    <Input
-                                        name="nombreProducto"
-                                        placeholder="Ej. iPhone 15 Pro"
-                                        value={producto.nombreProducto}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </div>
+                        <div className="lg:col-span-2 space-y-8">
+                            {/* Basic Info Section */}
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold text-white border-b border-white/10 pb-2">Información Básica</h3>
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-slate-300">Nombre del Producto</label>
+                                        <Input
+                                            name="nombreProducto"
+                                            placeholder="Ej. iPhone 15 Pro"
+                                            value={producto.nombreProducto}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">Marca</label>
-                                    <Input
-                                        name="marcaProducto"
-                                        placeholder="Ej. Apple"
-                                        value={producto.marcaProducto}
-                                        onChange={handleChange}
-                                    />
-                                </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium text-slate-300">Marca</label>
+                                            <Input
+                                                name="marcaProducto"
+                                                placeholder="Ej. Apple"
+                                                value={producto.marcaProducto}
+                                                onChange={handleChange}
+                                            />
+                                        </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">Categoría</label>
-                                    <Input
-                                        name="categoriaProducto"
-                                        placeholder="Ej. Electrónica"
-                                        value={producto.categoriaProducto}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">Stock / Cantidad</label>
-                                    <Input
-                                        name="cantidadProducto"
-                                        type="number"
-                                        placeholder="0"
-                                        value={producto.cantidadProducto}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">Precio Actual</label>
-                                    <Input
-                                        name="precioProducto"
-                                        type="number"
-                                        placeholder="0.00"
-                                        value={producto.precioProducto}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">Precio Original</label>
-                                    <Input
-                                        name="precioOriginal"
-                                        type="number"
-                                        placeholder="0.00"
-                                        value={producto.precioOriginal}
-                                        onChange={handleChange}
-                                    />
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium text-slate-300">Categoría</label>
+                                            <Input
+                                                name="categoriaProducto"
+                                                placeholder="Ej. Electrónica"
+                                                value={producto.categoriaProducto}
+                                                onChange={handleChange}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-300">ID Personalizado (Opcional)</label>
-                                <Input
-                                    name="idProducto"
-                                    placeholder="Identificador único"
-                                    value={producto.idProducto}
-                                    onChange={handleChange}
-                                />
+                            {/* Pricing Section */}
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold text-white border-b border-white/10 pb-2">Precios</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-emerald-400">Precio Local</label>
+                                        <CurrencyInput
+                                            name="precioVentaLocal"
+                                            placeholder="$0"
+                                            value={producto.precioVentaLocal}
+                                            onChange={handleChange}
+                                            required
+                                            className="border-emerald-500/20 focus:border-emerald-500/50"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-sky-400">Precio Web</label>
+                                        <CurrencyInput
+                                            name="precioVentaWeb"
+                                            placeholder="$0"
+                                            value={producto.precioVentaWeb}
+                                            onChange={handleChange}
+                                            required
+                                            className="border-sky-500/20 focus:border-sky-500/50"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-slate-400">Precio Original</label>
+                                        <CurrencyInput
+                                            name="precioOriginal"
+                                            placeholder="$0"
+                                            value={producto.precioOriginal}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Inventory Section */}
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold text-white border-b border-white/10 pb-2">Inventario</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-slate-300">Stock Disponible</label>
+                                        <Input
+                                            name="cantidadProducto"
+                                            type="number"
+                                            placeholder="0"
+                                            value={producto.cantidadProducto}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-slate-300">ID Personalizado (Opcional)</label>
+                                        <Input
+                                            name="idProducto"
+                                            placeholder="Identificador único"
+                                            value={producto.idProducto}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -185,7 +224,7 @@ function EditProduct() {
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-slate-300">Imagen del Producto</label>
                                     <ImageUpload
-                                        onImageUploaded={(url) => setProducto({ ...producto, imagenProducto: url })}
+                                        onImageUploaded={(url) => setProducto(prev => ({ ...prev, imagenProducto: url }))}
                                         currentImage={producto.imagenProducto}
                                         className="h-full"
                                     />
