@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3 } from "lucide-react";
+import { Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History } from "lucide-react";
 import { cn } from "../lib/utils";
 import { motion } from "framer-motion";
 
@@ -11,6 +11,7 @@ export function Layout({ children }) {
         { href: "/", label: "Productos", icon: Package },
         { href: "/crear", label: "Crear Producto", icon: PlusCircle },
         { href: "/ventas", label: "Punto de Venta", icon: ShoppingCart },
+        { href: "/historial", label: "Historial", icon: History },
     ];
 
     return (
