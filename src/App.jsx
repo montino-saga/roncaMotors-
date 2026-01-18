@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import CreateProducts from './pages/createProducts/CreateProducts'
+import EditProduct from './pages/editProduct/EditProduct'
 import ProductList from './pages/productList/ProductList'
 import Sales from './pages/sales/Sales'
 import { Layout } from './components/Layout'
@@ -12,6 +13,7 @@ function App() {
       <Routes>
         <Route path="/" element={<ProductList />} />
         <Route path="/crear" element={<CreateProducts onProductCreated={() => window.location.href = '/'} />} />
+        <Route path="/editar/:id" element={<EditProduct />} />
         <Route path="/ventas" element={<Sales />} />
       </Routes>
     </Layout>

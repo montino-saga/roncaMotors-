@@ -2,13 +2,20 @@ import { useState, useEffect } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
-import { ArrowUpDown, Search, Package, DollarSign, Tag } from 'lucide-react'
+import { ArrowUpDown, Search, Package, DollarSign, Tag, Edit, Trash2 } from 'lucide-react'
+import { Modal } from '../../components/ui/Modal'
+import { doc, deleteDoc } from 'firebase/firestore'
+import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
 
 function ProductList() {
   const [productos, setProductos] = useState([])
   const [productosOriginales, setProductosOriginales] = useState([])
   const [loading, setLoading] = useState(true)
   const [orden, setOrden] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [productToDelete, setProductToDelete] = useState(null)
+  const navigate = useNavigate()
 
   const obtenerProductos = async () => {
     try {
@@ -61,6 +68,28 @@ function ProductList() {
     setProductos(productosOrdenados)
   }
 
+  const handleDeleteClick = (producto) => {
+    setProductToDelete(producto)
+    setIsModalOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return
+
+    try {
+      await deleteDoc(doc(db, 'productos', productToDelete.id))
+      setProductos(productos.filter(p => p.id !== productToDelete.id))
+      setProductosOriginales(productosOriginales.filter(p => p.id !== productToDelete.id))
+      toast.success('Producto eliminado correctamente')
+    } catch (error) {
+      console.error("Error al eliminar producto:", error)
+      toast.error('Error al eliminar el producto')
+    } finally {
+      setIsModalOpen(false)
+      setProductToDelete(null)
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -103,6 +132,7 @@ function ProductList() {
                   <th className="p-4 font-medium text-slate-300">Precio</th>
                   <th className="p-4 font-medium text-slate-300">Original</th>
                   <th className="p-4 font-medium text-slate-300">Stock</th>
+                  <th className="p-4 font-medium text-slate-300 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -142,6 +172,24 @@ function ProductList() {
                         <span className="text-slate-300">{producto.cantidadProducto}</span>
                       </div>
                     </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => navigate(`/editar/${producto.id}`)}
+                          className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(producto)}
+                          className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -149,6 +197,33 @@ function ProductList() {
           </div>
         </Card>
       )}
+
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Confirmar Eliminación"
+      >
+        <div className="space-y-4">
+          <p className="text-slate-300">
+            ¿Estás seguro de que deseas eliminar el producto <span className="font-semibold text-white">{productToDelete?.nombreProducto}</span>?
+            Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmDelete}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors shadow-lg shadow-red-500/20"
+            >
+              Eliminar Producto
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

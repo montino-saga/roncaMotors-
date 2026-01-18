@@ -4,6 +4,7 @@ import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
+import { ImageUpload } from '../../components/ui/ImageUpload'
 import { PlusCircle } from 'lucide-react'
 
 function CreateProducts({ onProductCreated }) {
@@ -129,12 +130,10 @@ function CreateProducts({ onProductCreated }) {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">URL de la Imagen</label>
-            <Input
-              name="imagenProducto"
-              placeholder="https://..."
-              value={nuevoProducto.imagenProducto}
-              onChange={handleChange}
+            <label className="text-sm font-medium text-slate-300">Imagen del Producto</label>
+            <ImageUpload
+              onImageUploaded={(url) => setNuevoProducto({ ...nuevoProducto, imagenProducto: url })}
+              currentImage={nuevoProducto.imagenProducto}
             />
           </div>
 
