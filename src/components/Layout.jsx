@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Package, PlusCircle, LayoutDashboard, ShoppingCart } from "lucide-react";
+import { Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { motion } from "framer-motion";
 
@@ -7,6 +7,7 @@ export function Layout({ children }) {
     const location = useLocation();
 
     const navItems = [
+        { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
         { href: "/", label: "Productos", icon: Package },
         { href: "/crear", label: "Crear Producto", icon: PlusCircle },
         { href: "/ventas", label: "Punto de Venta", icon: ShoppingCart },

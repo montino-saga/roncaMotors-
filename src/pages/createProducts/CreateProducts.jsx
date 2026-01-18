@@ -61,97 +61,106 @@ function CreateProducts({ onProductCreated }) {
       </div>
 
       <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Nombre del Producto</label>
-              <Input
-                name="nombreProducto"
-                placeholder="Ej. iPhone 15 Pro"
-                value={nuevoProducto.nombreProducto}
-                onChange={handleChange}
-                required
-              />
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Column: Form Fields */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Nombre del Producto</label>
+                  <Input
+                    name="nombreProducto"
+                    placeholder="Ej. iPhone 15 Pro"
+                    value={nuevoProducto.nombreProducto}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Marca</label>
+                  <Input
+                    name="marcaProducto"
+                    placeholder="Ej. Apple"
+                    value={nuevoProducto.marcaProducto}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Categoría</label>
+                  <Input
+                    name="categoriaProducto"
+                    placeholder="Ej. Electrónica"
+                    value={nuevoProducto.categoriaProducto}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Stock / Cantidad</label>
+                  <Input
+                    name="cantidadProducto"
+                    type="number"
+                    placeholder="0"
+                    value={nuevoProducto.cantidadProducto}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Precio Actual</label>
+                  <Input
+                    name="precioProducto"
+                    type="number"
+                    placeholder="0.00"
+                    value={nuevoProducto.precioProducto}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Precio Original</label>
+                  <Input
+                    name="precioOriginal"
+                    type="number"
+                    placeholder="0.00"
+                    value={nuevoProducto.precioOriginal}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">ID Personalizado (Opcional)</label>
+                <Input
+                  name="idProducto"
+                  placeholder="Identificador único"
+                  value={nuevoProducto.idProducto}
+                  onChange={handleChange}
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Marca</label>
-              <Input
-                name="marcaProducto"
-                placeholder="Ej. Apple"
-                value={nuevoProducto.marcaProducto}
-                onChange={handleChange}
-              />
+            {/* Right Column: Image Upload */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-6 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Imagen del Producto</label>
+                  <ImageUpload
+                    onImageUploaded={(url) => setNuevoProducto({ ...nuevoProducto, imagenProducto: url })}
+                    currentImage={nuevoProducto.imagenProducto}
+                    className="h-full"
+                  />
+                </div>
+
+                <Button type="submit" className="w-full flex items-center justify-center gap-2 mt-6">
+                  <PlusCircle className="w-5 h-5" />
+                  Crear Producto
+                </Button>
+              </div>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Categoría</label>
-              <Input
-                name="categoriaProducto"
-                placeholder="Ej. Electrónica"
-                value={nuevoProducto.categoriaProducto}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Stock / Cantidad</label>
-              <Input
-                name="cantidadProducto"
-                type="number"
-                placeholder="0"
-                value={nuevoProducto.cantidadProducto}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Precio Actual</label>
-              <Input
-                name="precioProducto"
-                type="number"
-                placeholder="0.00"
-                value={nuevoProducto.precioProducto}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Precio Original</label>
-              <Input
-                name="precioOriginal"
-                type="number"
-                placeholder="0.00"
-                value={nuevoProducto.precioOriginal}
-                onChange={handleChange}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Imagen del Producto</label>
-            <ImageUpload
-              onImageUploaded={(url) => setNuevoProducto({ ...nuevoProducto, imagenProducto: url })}
-              currentImage={nuevoProducto.imagenProducto}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">ID Personalizado (Opcional)</label>
-            <Input
-              name="idProducto"
-              placeholder="Identificador único"
-              value={nuevoProducto.idProducto}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="pt-4">
-            <Button type="submit" className="w-full flex items-center justify-center gap-2">
-              <PlusCircle className="w-5 h-5" />
-              Crear Producto
-            </Button>
           </div>
         </form>
       </Card>
