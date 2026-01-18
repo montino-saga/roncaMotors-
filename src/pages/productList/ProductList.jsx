@@ -7,6 +7,7 @@ import { Modal } from '../../components/ui/Modal'
 import { doc, deleteDoc } from 'firebase/firestore'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
+import { Skeleton } from '../../components/ui/Skeleton'
 
 function ProductList() {
   const [productos, setProductos] = useState([])
@@ -154,7 +155,7 @@ function ProductList() {
                 setSearchTerm(e.target.value)
                 setCurrentPage(1) // Reset to first page on search
               }}
-              className="pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full md:w-64 transition-colors"
+              className="pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 w-full md:w-64 transition-colors"
             />
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
@@ -168,7 +169,7 @@ function ProductList() {
                 setMinStock(e.target.value)
                 setCurrentPage(1)
               }}
-              className="w-24 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-colors"
+              className="w-24 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
             />
             <span className="text-slate-500">-</span>
             <input
@@ -179,7 +180,7 @@ function ProductList() {
                 setMaxStock(e.target.value)
                 setCurrentPage(1)
               }}
-              className="w-24 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-colors"
+              className="w-24 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
             />
           </div>
 
@@ -187,7 +188,7 @@ function ProductList() {
             <select
               value={orden}
               onChange={(e) => ordenarProductos(e.target.value)}
-              className="appearance-none bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer hover:bg-white/10 transition-colors"
+              className="appearance-none bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer hover:bg-white/10 transition-colors"
             >
               <option value="" className="bg-slate-900">Ordenar por...</option>
               <option value="nombre-asc" className="bg-slate-900">Nombre (A → Z)</option>
@@ -201,8 +202,23 @@ function ProductList() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <div className="space-y-4">
+          <Card className="p-0 overflow-hidden">
+            <div className="p-4 space-y-4">
+              {[...Array(itemsPerPage)].map((_, i) => (
+                <div key={i} className="flex gap-4 items-center">
+                  <Skeleton className="w-14 h-14 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-1/3" />
+                    <Skeleton className="h-4 w-1/4" />
+                  </div>
+                  <Skeleton className="h-8 w-24 rounded-full" />
+                  <Skeleton className="h-6 w-20" />
+                  <Skeleton className="h-8 w-16 rounded-lg ml-auto" />
+                </div>
+              ))}
+            </div>
+          </Card>
         </div>
       ) : (
         <>
@@ -243,7 +259,7 @@ function ProductList() {
                       </td>
                       <td className="p-4 text-slate-300">{producto.marcaProducto}</td>
                       <td className="p-4">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                           <Tag className="w-3 h-3" />
                           {producto.categoriaProducto}
                         </span>
@@ -269,7 +285,7 @@ function ProductList() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => navigate(`/editar/${producto.id}`)}
-                            className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                            className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
                             title="Editar"
                           >
                             <Edit className="w-4 h-4" />
@@ -321,7 +337,7 @@ function ProductList() {
                         key={pageNum}
                         onClick={() => handlePageChange(pageNum)}
                         className={`w-8 h-8 text-sm font-medium rounded-lg transition-colors ${currentPage === pageNum
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-primary text-white'
                           : 'text-slate-400 hover:bg-white/5'
                           }`}
                       >

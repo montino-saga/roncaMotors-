@@ -8,10 +8,13 @@ import {
 } from 'recharts'
 import { DollarSign, ShoppingBag, TrendingUp, CreditCard, Calendar, Percent, Clock } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
+import { Skeleton } from '../../components/ui/Skeleton'
+import { useTheme } from '../../context/ThemeContext'
 
 function Dashboard() {
     const [sales, setSales] = useState([])
     const [loading, setLoading] = useState(true)
+    const { settings } = useTheme()
     const [metrics, setMetrics] = useState({
         totalRevenue: 0,
         totalProfit: 0,
@@ -195,12 +198,29 @@ function Dashboard() {
         })
     }
 
-    const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+    const COLORS = [settings.primaryColor, '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <div className="space-y-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-2">
+                        <Skeleton className="h-10 w-64" />
+                        <Skeleton className="h-5 w-48" />
+                    </div>
+                    <Skeleton className="h-10 w-40" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                    {[...Array(5)].map((_, i) => (
+                        <Skeleton key={i} className="h-32 w-full rounded-xl" />
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Skeleton className="h-96 w-full rounded-xl" />
+                    <Skeleton className="h-96 w-full rounded-xl" />
+                </div>
             </div>
         )
     }
@@ -217,7 +237,7 @@ function Dashboard() {
                     <select
                         value={dateRange}
                         onChange={(e) => setDateRange(e.target.value)}
-                        className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
                         <option value="week" className="bg-slate-900">Semana</option>
                         <option value="month" className="bg-slate-900">Mes</option>
@@ -233,14 +253,14 @@ function Dashboard() {
                                 type="date"
                                 value={customStart}
                                 onChange={(e) => setCustomStart(e.target.value)}
-                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                             />
                             <span className="text-slate-500">-</span>
                             <input
                                 type="date"
                                 value={customEnd}
                                 onChange={(e) => setCustomEnd(e.target.value)}
-                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                             />
                         </div>
                     )}
@@ -249,10 +269,10 @@ function Dashboard() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                <Card className="p-6 border-l-4 border-l-blue-500">
+                <Card className="p-6 border-l-4 border-l-primary">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-blue-500/10 rounded-lg">
-                            <DollarSign className="w-6 h-6 text-blue-500" />
+                        <div className="p-3 bg-primary/10 rounded-lg">
+                            <DollarSign className="w-6 h-6 text-primary" />
                         </div>
                         <span className="text-xs font-medium text-slate-400 bg-white/5 px-2 py-1 rounded">Total</span>
                     </div>
@@ -319,7 +339,7 @@ function Dashboard() {
                                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff' }}
                                     formatter={(value) => [formatCLP(value), 'Ventas']}
                                 />
-                                <Line type="monotone" dataKey="ventas" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6' }} activeDot={{ r: 6 }} />
+                                <Line type="monotone" dataKey="ventas" stroke={settings.primaryColor} strokeWidth={3} dot={{ r: 4, fill: settings.primaryColor }} activeDot={{ r: 6 }} />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
@@ -419,7 +439,7 @@ function Dashboard() {
                                         <span className={cn(
                                             "px-2 py-1 rounded-full text-xs font-medium capitalize",
                                             sale.tipoPago === 'efectivo'
-                                                ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                                ? "bg-primary/10 text-primary border border-primary/20"
                                                 : "bg-purple-500/10 text-purple-400 border border-purple-500/20"
                                         )}>
                                             {sale.tipoPago}

@@ -8,6 +8,7 @@ import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, 
 import { cn, formatCLP } from '../../lib/utils'
 import { toast } from 'sonner'
 import { Button } from '../../components/ui/Button'
+import { Skeleton } from '../../components/ui/Skeleton'
 
 function SalesHistory() {
     const [sales, setSales] = useState([])
@@ -114,8 +115,24 @@ function SalesHistory() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <div className="space-y-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-2">
+                        <Skeleton className="h-10 w-64" />
+                        <Skeleton className="h-5 w-48" />
+                    </div>
+                    <div className="flex gap-3">
+                        <Skeleton className="h-10 w-32" />
+                        <Skeleton className="h-10 w-40" />
+                    </div>
+                </div>
+                <Card className="p-0 overflow-hidden">
+                    <div className="p-4 space-y-4">
+                        {[...Array(8)].map((_, i) => (
+                            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+                        ))}
+                    </div>
+                </Card>
             </div>
         )
     }
@@ -186,7 +203,7 @@ function SalesHistory() {
                                         <span className={cn(
                                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border capitalize",
                                             sale.tipoPago === 'efectivo'
-                                                ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                                                ? "bg-primary/10 text-primary border-primary/20"
                                                 : "bg-purple-500/10 text-purple-400 border-purple-500/20"
                                         )}>
                                             {sale.tipoPago === 'efectivo' ? <Banknote className="w-3 h-3" /> : <CreditCard className="w-3 h-3" />}
@@ -232,7 +249,7 @@ function SalesHistory() {
                                     {!isEditingPayment ? (
                                         <button
                                             onClick={() => setIsEditingPayment(true)}
-                                            className="text-xs text-blue-400 hover:text-blue-300"
+                                            className="text-xs text-primary hover:text-primary/80"
                                         >
                                             Editar
                                         </button>
@@ -258,7 +275,7 @@ function SalesHistory() {
                                     <select
                                         value={newPaymentMethod}
                                         onChange={(e) => setNewPaymentMethod(e.target.value)}
-                                        className="w-full bg-slate-900 border border-white/10 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-blue-500"
+                                        className="w-full bg-slate-900 border border-white/10 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary"
                                     >
                                         <option value="efectivo">Efectivo</option>
                                         <option value="tarjeta">Tarjeta</option>

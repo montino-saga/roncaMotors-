@@ -10,6 +10,8 @@ import { Search, Trash2, ShoppingCart, CreditCard, Banknote } from 'lucide-react
 import { cn, formatCLP } from '../../lib/utils'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import { printer } from '../../lib/printer'
+import { sounds } from '../../lib/sounds'
 
 function Sales() {
     const [cart, setCart] = usePersistedState('montino_pos_cart', [])
@@ -17,7 +19,18 @@ function Sales() {
     const [loading, setLoading] = useState(false)
     const [processing, setProcessing] = useState(false)
     const [paymentType, setPaymentType] = usePersistedState('montino_pos_payment_type', 'efectivo')
+    const [isPrinterConnected, setIsPrinterConnected] = useState(false)
     const inputRef = useRef(null)
+
+    const handleConnectPrinter = async () => {
+        const success = await printer.connect()
+        if (success) {
+            setIsPrinterConnected(true)
+            toast.success('Impresora conectada')
+        } else {
+            toast.error('Error al conectar impresora')
+        }
+    }
 
     const getLocalPrice = (item) => Number(item?.precioVentaLocal ?? item?.precioProducto ?? 0)
 
@@ -65,6 +78,7 @@ function Sales() {
                     const newCart = [...cart]
                     newCart[existingItemIndex].cantidad += 1
                     setCart(newCart)
+                    sounds.playScan()
                 } else {
                     // Check stock limit
                     if (productData.cantidadProducto < 1) {
@@ -84,14 +98,17 @@ function Sales() {
                     }
                     // Add new item
                     setCart([...cart, { ...productData, cantidad: 1 }])
+                    sounds.playScan()
                 }
                 setProductId('')
             } else {
                 toast.error('Producto no encontrado')
+                sounds.playError()
             }
         } catch (error) {
             console.error("Error searching product:", error)
             toast.error('Error al buscar producto')
+            sounds.playError()
         } finally {
             setLoading(false)
         }
@@ -217,6 +234,17 @@ function Sales() {
 
             // 3. Commit Batch
             await batch.commit()
+            sounds.playSuccess()
+
+            // 4. Print Receipt (Silent)
+            if (isPrinterConnected) {
+                try {
+                    await printer.printReceipt(saleData)
+                } catch (printError) {
+                    console.error("Print error:", printError)
+                    toast.error("Venta guardada, pero falló la impresión")
+                }
+            }
 
             toast.success('Venta realizada con éxito', {
                 description: `Total: ${formatCLP(saleData.totalVenta)} - Pago: ${paymentType}`,
@@ -268,10 +296,21 @@ function Sales() {
             {/* Left Side: Input & Product Entry */}
             <div className="w-full md:w-1/3 flex flex-col gap-6">
                 <Card className="flex-1 flex flex-col p-6">
-                    <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-                        <ShoppingCart className="w-6 h-6 text-blue-400" />
-                        Punto de Venta
-                    </h2>
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                            <ShoppingCart className="w-6 h-6 text-primary" />
+                            Punto de Venta
+                        </h2>
+                        <Button
+                            variant={isPrinterConnected ? "secondary" : "outline"}
+                            size="sm"
+                            onClick={handleConnectPrinter}
+                            className={cn("gap-2", isPrinterConnected && "text-emerald-400 border-emerald-500/30 bg-emerald-500/5")}
+                        >
+                            <div className={cn("w-2 h-2 rounded-full", isPrinterConnected ? "bg-emerald-500 animate-pulse" : "bg-slate-500")} />
+                            {isPrinterConnected ? 'Impresora Lista' : 'Conectar Impresora'}
+                        </Button>
+                    </div>
 
                     <form onSubmit={addToCart} className="mb-8">
                         <div className="relative">
@@ -306,7 +345,7 @@ function Sales() {
                                 className={cn(
                                     "flex flex-col items-center justify-center p-4 rounded-xl border transition-all",
                                     paymentType === 'efectivo'
-                                        ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20"
+                                        ? "bg-primary border-primary text-white shadow-lg shadow-primary/20"
                                         : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
                                 )}
                             >
@@ -318,7 +357,7 @@ function Sales() {
                                 className={cn(
                                     "flex flex-col items-center justify-center p-4 rounded-xl border transition-all",
                                     paymentType === 'tarjeta'
-                                        ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20"
+                                        ? "bg-primary border-primary text-white shadow-lg shadow-primary/20"
                                         : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
                                 )}
                             >
