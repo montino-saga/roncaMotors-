@@ -1,20 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
+import { usePersistedState } from '../../hooks/usePersistedState'
 import { collection, getDocs, query, where, writeBatch, doc, Timestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
-import { Search, Trash2, ShoppingCart, DollarSign, CreditCard, Banknote } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { Search, Trash2, ShoppingCart, CreditCard, Banknote } from 'lucide-react'
+import { cn, formatCLP } from '../../lib/utils'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 
 function Sales() {
-    const [cart, setCart] = useState([])
+    const [cart, setCart] = usePersistedState('montino_pos_cart', [])
     const [productId, setProductId] = useState('')
     const [loading, setLoading] = useState(false)
     const [processing, setProcessing] = useState(false)
-    const [paymentType, setPaymentType] = useState('efectivo')
+    const [paymentType, setPaymentType] = usePersistedState('montino_pos_payment_type', 'efectivo')
     const inputRef = useRef(null)
 
     const getLocalPrice = (item) => Number(item?.precioVentaLocal ?? item?.precioProducto ?? 0)
@@ -217,7 +219,7 @@ function Sales() {
             await batch.commit()
 
             toast.success('Venta realizada con éxito', {
-                description: `Total: $${saleData.totalVenta.toLocaleString()} - Pago: ${paymentType}`,
+                description: `Total: ${formatCLP(saleData.totalVenta)} - Pago: ${paymentType}`,
                 duration: 3000
             })
 
@@ -295,7 +297,7 @@ function Sales() {
                     <div className="mt-auto space-y-4">
                         <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                             <p className="text-slate-400 text-sm mb-1">Total a Pagar</p>
-                            <p className="text-4xl font-bold text-emerald-400">${calculateTotal().toLocaleString()}</p>
+                            <p className="text-4xl font-bold text-emerald-400">{formatCLP(calculateTotal())}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -353,61 +355,74 @@ function Sales() {
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                        {cart.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-500 opacity-50">
-                                <ShoppingCart className="w-16 h-16 mb-4" />
-                                <p className="text-lg">El carrito está vacío</p>
-                                <p className="text-sm">Escanea un producto para comenzar</p>
-                            </div>
-                        ) : (
-                            cart.map((item, index) => (
-                                <div key={index} className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 group hover:border-white/20 transition-colors">
-                                    <div className="w-16 h-16 rounded-lg bg-white/10 overflow-hidden flex-shrink-0">
-                                        <img
-                                            src={item.imagenProducto || 'https://via.placeholder.com/64'}
-                                            alt={item.nombreProducto}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-medium text-white truncate">{item.nombreProducto}</h4>
-                                        <p className="text-sm text-slate-400">{item.marcaProducto}</p>
-                                        <div className="text-xs text-slate-500 mt-1 font-mono">{item.idProducto}</div>
-                                    </div>
-
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex items-center bg-slate-900 rounded-lg border border-white/10">
-                                            <button
-                                                onClick={() => updateQuantity(index, -1)}
-                                                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 rounded-l-lg transition-colors"
-                                            >
-                                                -
-                                            </button>
-                                            <span className="w-8 text-center font-mono text-sm">{item.cantidad}</span>
-                                            <button
-                                                onClick={() => updateQuantity(index, 1)}
-                                                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 rounded-r-lg transition-colors"
-                                            >
-                                                +
-                                            </button>
+                        <AnimatePresence mode='popLayout'>
+                            {cart.length === 0 ? (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="h-full flex flex-col items-center justify-center text-slate-500 opacity-50"
+                                >
+                                    <ShoppingCart className="w-16 h-16 mb-4" />
+                                    <p className="text-lg">El carrito está vacío</p>
+                                    <p className="text-sm">Escanea un producto para comenzar</p>
+                                </motion.div>
+                            ) : (
+                                cart.map((item, index) => (
+                                    <motion.div
+                                        key={`${item.id}-${index}`}
+                                        layout
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 group hover:border-white/20 transition-colors"
+                                    >
+                                        <div className="w-16 h-16 rounded-lg bg-white/10 overflow-hidden flex-shrink-0">
+                                            <img
+                                                src={item.imagenProducto || 'https://via.placeholder.com/64'}
+                                                alt={item.nombreProducto}
+                                                className="w-full h-full object-cover"
+                                            />
                                         </div>
 
-                                        <div className="text-right min-w-[80px]">
-                                            <p className="font-bold text-white">${(getLocalPrice(item) * item.cantidad).toLocaleString('es-CL')}</p>
-                                            <p className="text-xs text-slate-500">${getLocalPrice(item).toLocaleString('es-CL')} c/u</p>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-medium text-white truncate">{item.nombreProducto}</h4>
+                                            <p className="text-sm text-slate-400">{item.marcaProducto}</p>
+                                            <div className="text-xs text-slate-500 mt-1 font-mono">{item.idProducto}</div>
                                         </div>
 
-                                        <button
-                                            onClick={() => removeFromCart(index)}
-                                            className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        )}
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center bg-slate-900 rounded-lg border border-white/10">
+                                                <button
+                                                    onClick={() => updateQuantity(index, -1)}
+                                                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 rounded-l-lg transition-colors"
+                                                >
+                                                    -
+                                                </button>
+                                                <span className="w-8 text-center font-mono text-sm">{item.cantidad}</span>
+                                                <button
+                                                    onClick={() => updateQuantity(index, 1)}
+                                                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 rounded-r-lg transition-colors"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+
+                                            <div className="text-right min-w-[80px]">
+                                                <p className="font-bold text-white">{formatCLP(getLocalPrice(item) * item.cantidad)}</p>
+                                                <p className="text-xs text-slate-500">{formatCLP(getLocalPrice(item))} c/u</p>
+                                            </div>
+
+                                            <button
+                                                onClick={() => removeFromCart(index)}
+                                                className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                ))
+                            )}
+                        </AnimatePresence>
                     </div>
                 </Card>
             </div>
