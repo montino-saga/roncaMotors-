@@ -113,6 +113,9 @@ function SalesHistory() {
         return sale.tipoPago === paymentFilter
     })
 
+    const totalSalesAmount = filteredSales.reduce((acc, sale) => acc + (sale.totalVenta || 0), 0)
+    const totalSalesCount = filteredSales.length
+
     if (loading) {
         return (
             <div className="space-y-8">
@@ -139,67 +142,95 @@ function SalesHistory() {
 
     return (
         <div className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold text-white mb-2">Historial de Ventas</h2>
-                    <p className="text-slate-400">Registro completo de todas las transacciones.</p>
+                    <h2 className="text-2xl font-bold text-white">Historial de Ventas</h2>
+                    <p className="text-slate-400 text-sm">Registro de transacciones del día.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
-                        <Filter className="w-4 h-4 text-slate-400" />
-                        <select
-                            value={paymentFilter}
-                            onChange={(e) => setPaymentFilter(e.target.value)}
-                            className="bg-transparent border-none text-white focus:outline-none text-sm [&>option]:bg-slate-900"
-                        >
-                            <option value="todos">Todos</option>
-                            <option value="efectivo">Efectivo</option>
-                            <option value="tarjeta">Tarjeta</option>
-                        </select>
+                    {/* Stats Card */}
+                    <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+                        <div className="flex items-center gap-2 border-r border-white/10 pr-4">
+                            <div className="bg-emerald-500/20 p-1.5 rounded-lg text-emerald-400">
+                                <DollarSign className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Total</p>
+                                <p className="text-lg font-bold text-emerald-400 leading-tight">
+                                    {formatCLP(totalSalesAmount)}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
+                                <Search className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Ventas</p>
+                                <p className="text-lg font-bold text-white leading-tight">
+                                    {totalSalesCount}
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
-                        <Calendar className="w-5 h-5 text-slate-400" />
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="bg-transparent border-none text-white focus:outline-none [&::-webkit-calendar-picker-indicator]:invert"
-                        />
+                    <div className="flex gap-2">
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10">
+                            <Filter className="w-4 h-4 text-slate-400" />
+                            <select
+                                value={paymentFilter}
+                                onChange={(e) => setPaymentFilter(e.target.value)}
+                                className="bg-transparent border-none text-white focus:outline-none text-sm [&>option]:bg-slate-900"
+                            >
+                                <option value="todos">Todos</option>
+                                <option value="efectivo">Efectivo</option>
+                                <option value="tarjeta">Tarjeta</option>
+                            </select>
+                        </div>
+
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10">
+                            <Calendar className="w-4 h-4 text-slate-400" />
+                            <input
+                                type="date"
+                                value={selectedDate}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                                className="bg-transparent border-none text-white focus:outline-none text-sm [&::-webkit-calendar-picker-indicator]:invert"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <Card className="overflow-hidden p-0">
-                <div className="overflow-x-auto">
+            <Card className="overflow-hidden p-0 border-white/10">
+                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-white/10 bg-white/5">
-                                <th className="p-4 font-medium text-slate-300">Fecha</th>
-                                <th className="p-4 font-medium text-slate-300">ID Venta</th>
-                                <th className="p-4 font-medium text-slate-300">Productos</th>
-                                <th className="p-4 font-medium text-slate-300">Método Pago</th>
-                                <th className="p-4 font-medium text-slate-300 text-right">Total</th>
-                                <th className="p-4 font-medium text-slate-300 text-right">Acciones</th>
+                                <th className="px-4 py-3 font-medium text-slate-300 text-sm">Fecha</th>
+                                <th className="px-4 py-3 font-medium text-slate-300 text-sm hidden sm:table-cell">ID</th>
+                                <th className="px-4 py-3 font-medium text-slate-300 text-sm">Items</th>
+                                <th className="px-4 py-3 font-medium text-slate-300 text-sm">Pago</th>
+                                <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Total</th>
+                                <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {filteredSales.map((sale) => (
                                 <tr key={sale.id} className="hover:bg-white/5 transition-colors group">
-                                    <td className="p-4 text-slate-300">
+                                    <td className="px-4 py-3 text-slate-300">
                                         <div className="flex items-center gap-2">
                                             <Calendar className="w-4 h-4 text-slate-500" />
                                             {formatDate(sale.fechaVenta)}
                                         </div>
                                     </td>
-                                    <td className="p-4 text-slate-500 font-mono text-xs">
-                                        {sale.id.slice(0, 8)}...
+                                    <td className="px-4 py-3 text-slate-500 font-mono text-xs hidden sm:table-cell">
+                                        {sale.id.slice(0, 8)}
                                     </td>
-                                    <td className="p-4 text-slate-300">
+                                    <td className="px-4 py-3 text-slate-300">
                                         {sale.productos.length} items
                                     </td>
-                                    <td className="p-4">
+                                    <td className="px-4 py-3">
                                         <span className={cn(
                                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border capitalize",
                                             sale.tipoPago === 'efectivo'
@@ -210,10 +241,10 @@ function SalesHistory() {
                                             {sale.tipoPago}
                                         </span>
                                     </td>
-                                    <td className="p-4 font-bold text-emerald-400 text-right">
+                                    <td className="px-4 py-3 font-bold text-emerald-400 text-right">
                                         {formatCLP(sale.totalVenta)}
                                     </td>
-                                    <td className="p-4 text-right">
+                                    <td className="px-4 py-3 text-right">
                                         <button
                                             onClick={() => handleViewDetails(sale)}
                                             className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"

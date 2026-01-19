@@ -133,70 +133,101 @@ function ProductList() {
   const currentItems = filteredProducts.slice(indexOfFirstItem, indexOfLastItem)
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
 
+  const totalValue = filteredProducts.reduce((acc, p) => acc + (getLocalPrice(p) * (parseInt(p.cantidadProducto) || 0)), 0)
+  const totalCount = filteredProducts.length
+
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber)
   }
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-white mb-2">Lista de Productos</h2>
-          <p className="text-slate-400">Gestiona tu inventario y precios.</p>
+          <h2 className="text-2xl font-bold text-white">Lista de Productos</h2>
+          <p className="text-slate-400 text-sm">Gestiona tu inventario y precios.</p>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Buscar por ID, nombre o marca..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value)
-                setCurrentPage(1) // Reset to first page on search
-              }}
-              className="pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 w-full md:w-64 transition-colors"
-            />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Stats Summary */}
+          <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+            <div className="flex items-center gap-2 border-r border-white/10 pr-4">
+              <div className="bg-emerald-500/20 p-1.5 rounded-lg text-emerald-400">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Valor Total</p>
+                <p className="text-lg font-bold text-emerald-400 leading-tight">
+                  ${totalValue.toLocaleString('es-CL')}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
+                <Package className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Productos</p>
+                <p className="text-lg font-bold text-white leading-tight">
+                  {totalCount}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              placeholder="Min Stock"
-              value={minStock}
-              onChange={(e) => {
-                setMinStock(e.target.value)
-                setCurrentPage(1)
-              }}
-              className="w-24 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
-            />
-            <span className="text-slate-500">-</span>
-            <input
-              type="number"
-              placeholder="Max Stock"
-              value={maxStock}
-              onChange={(e) => {
-                setMaxStock(e.target.value)
-                setCurrentPage(1)
-              }}
-              className="w-24 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
-            />
-          </div>
+          <div className="flex flex-wrap gap-2">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Buscar..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="pl-9 pr-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-48 transition-colors"
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            </div>
 
-          <div className="relative">
-            <select
-              value={orden}
-              onChange={(e) => ordenarProductos(e.target.value)}
-              className="appearance-none bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer hover:bg-white/10 transition-colors"
-            >
-              <option value="" className="bg-slate-900">Ordenar por...</option>
-              <option value="nombre-asc" className="bg-slate-900">Nombre (A → Z)</option>
-              <option value="nombre-desc" className="bg-slate-900">Nombre (Z → A)</option>
-              <option value="precio-asc" className="bg-slate-900">Precio Local (Menor → Mayor)</option>
-              <option value="precio-desc" className="bg-slate-900">Precio Local (Mayor → Menor)</option>
-            </select>
-            <ArrowUpDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2 h-10">
+              <input
+                type="number"
+                placeholder="Min"
+                value={minStock}
+                onChange={(e) => {
+                  setMinStock(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="w-14 bg-transparent text-white text-sm focus:outline-none text-center"
+              />
+              <span className="text-slate-500">-</span>
+              <input
+                type="number"
+                placeholder="Max"
+                value={maxStock}
+                onChange={(e) => {
+                  setMaxStock(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="w-14 bg-transparent text-white text-sm focus:outline-none text-center"
+              />
+            </div>
+
+            <div className="relative">
+              <select
+                value={orden}
+                onChange={(e) => ordenarProductos(e.target.value)}
+                className="appearance-none h-10 bg-white/5 border border-white/10 rounded-lg px-3 pr-8 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer hover:bg-white/10 transition-colors"
+              >
+                <option value="" className="bg-slate-900">Ordenar por...</option>
+                <option value="nombre-asc" className="bg-slate-900">A-Z</option>
+                <option value="nombre-desc" className="bg-slate-900">Z-A</option>
+                <option value="precio-asc" className="bg-slate-900">Precio Min</option>
+                <option value="precio-desc" className="bg-slate-900">Precio Max</option>
+              </select>
+              <ArrowUpDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
         </div>
       </div>
@@ -222,77 +253,77 @@ function ProductList() {
         </div>
       ) : (
         <>
-          <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
+          <Card className="overflow-hidden p-0 border-white/10">
+            <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-white/10 bg-white/5">
-                    <th className="p-4 font-medium text-slate-300">Imagen</th>
-                    <th className="p-4 font-medium text-slate-300">ID</th>
-                    <th className="p-4 font-medium text-slate-300">Nombre</th>
-                    <th className="p-4 font-medium text-slate-300">Marca</th>
-                    <th className="p-4 font-medium text-slate-300">Categoría</th>
-                    <th className="p-4 font-medium text-slate-300">Precio Local</th>
-                    <th className="p-4 font-medium text-slate-300">Precio Web</th>
-                    <th className="p-4 font-medium text-slate-300">Original</th>
-                    <th className="p-4 font-medium text-slate-300">Stock</th>
-                    <th className="p-4 font-medium text-slate-300 text-right">Acciones</th>
+                  <tr className="border-b border-white/10 bg-white/5 sticky top-0 z-10">
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm">Imagen</th>
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm hidden lg:table-cell">ID</th>
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm">Nombre</th>
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm hidden md:table-cell">Marca</th>
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm hidden sm:table-cell">Categoría</th>
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm">Precio Local</th>
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm hidden xl:table-cell">Web</th>
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm hidden xl:table-cell">Original</th>
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm">Stock</th>
+                    <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {currentItems.map((producto) => (
                     <tr key={producto.id} className="hover:bg-white/5 transition-colors group">
-                      <td className="p-4">
-                        <div className="w-14 h-14 rounded-lg overflow-hidden bg-white/5 border border-white/10">
+                      <td className="px-4 py-3">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-white/5 border border-white/10">
                           <img
-                            src={producto.imagenProducto || 'https://via.placeholder.com/56'}
+                            src={producto.imagenProducto || 'https://via.placeholder.com/48'}
                             alt={producto.nombreProducto}
                             className="w-full h-full object-cover"
                           />
                         </div>
                       </td>
-                      <td className="p-4 text-slate-400 font-mono text-sm">
+                      <td className="px-4 py-3 text-slate-400 font-mono text-[10px] hidden lg:table-cell">
                         {producto.idProducto || producto.id.slice(0, 8)}
                       </td>
-                      <td className="p-4">
-                        <div className="font-medium text-white">{producto.nombreProducto}</div>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-white text-sm">{producto.nombreProducto}</div>
                       </td>
-                      <td className="p-4 text-slate-300">{producto.marcaProducto}</td>
-                      <td className="p-4">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                      <td className="px-4 py-3 text-slate-300 text-sm hidden md:table-cell">{producto.marcaProducto}</td>
+                      <td className="px-4 py-3 hidden sm:table-cell">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
                           <Tag className="w-3 h-3" />
                           {producto.categoriaProducto}
                         </span>
                       </td>
-                      <td className="p-4 font-medium text-emerald-400">
+                      <td className="px-4 py-3 font-medium text-emerald-400 text-sm">
                         ${getLocalPrice(producto).toLocaleString('es-CL')}
                       </td>
-                      <td className="p-4 font-medium text-sky-400">
+                      <td className="px-4 py-3 font-medium text-sky-400 text-sm hidden xl:table-cell">
                         ${getWebPrice(producto).toLocaleString('es-CL')}
                       </td>
-                      <td className="p-4 text-slate-500 line-through text-sm">
+                      <td className="px-4 py-3 text-slate-500 line-through text-xs hidden xl:table-cell">
                         ${Number(producto.precioOriginal || 0).toLocaleString('es-CL')}
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <Package className={`w-4 h-4 ${getStockColor(producto.cantidadProducto)}`} />
-                          <span className={`font-medium ${getStockColor(producto.cantidadProducto)}`}>
+                          <Package className={`w-3.5 h-3.5 ${getStockColor(producto.cantidadProducto)}`} />
+                          <span className={`font-medium text-sm ${getStockColor(producto.cantidadProducto)}`}>
                             {producto.cantidadProducto}
                           </span>
                         </div>
                       </td>
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => navigate(`/editar/${producto.id}`)}
-                            className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                            className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"
                             title="Editar"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteClick(producto)}
-                            className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                             title="Eliminar"
                           >
                             <Trash2 className="w-4 h-4" />

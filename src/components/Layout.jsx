@@ -10,9 +10,9 @@ export function Layout({ children }) {
 
     const navItems = [
         { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
-        { href: "/", label: "Productos", icon: Package },
+        { href: "/", label: "Punto de Venta", icon: ShoppingCart },
+        { href: "/productos", label: "Productos", icon: Package },
         { href: "/crear", label: "Crear Producto", icon: PlusCircle },
-        { href: "/ventas", label: "Punto de Venta", icon: ShoppingCart },
         { href: "/historial", label: "Historial", icon: History },
         { href: "/pedidos-web", label: "Pedidos Web", icon: Globe },
     ];

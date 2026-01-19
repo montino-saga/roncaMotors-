@@ -16,8 +16,9 @@ function App() {
       <Layout>
         <Toaster position="bottom-right" theme="dark" richColors />
         <Routes>
-          <Route path="/" element={<ProductList />} />
-          <Route path="/crear" element={<CreateProducts onProductCreated={() => window.location.href = '/'} />} />
+          <Route path="/" element={<Sales />} />
+          <Route path="/productos" element={<ProductList />} />
+          <Route path="/crear" element={<CreateProducts onProductCreated={() => window.location.href = '/productos'} />} />
           <Route path="/editar/:id" element={<EditProduct />} />
           <Route path="/ventas" element={<Sales />} />
           <Route path="/historial" element={<SalesHistory />} />
