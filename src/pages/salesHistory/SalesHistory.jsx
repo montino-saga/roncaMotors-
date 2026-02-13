@@ -1,21 +1,29 @@
 import { useState, useEffect } from 'react'
 import { usePersistedState } from '../../hooks/usePersistedState'
-import { collection, getDocs, orderBy, query, where, doc, updateDoc } from 'firebase/firestore'
+import { collection, getDocs, orderBy, query, where, doc, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Modal } from '../../components/ui/Modal'
-import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, X } from 'lucide-react'
+import { Input } from '../../components/ui/Input'
+import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, X, Trash2, AlertTriangle, ChevronDown, BarChart3, List, User } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { toast } from 'sonner'
 import { Button } from '../../components/ui/Button'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { SalesAnalytics } from './SalesAnalytics'
 
 function SalesHistory() {
     const [sales, setSales] = useState([])
     const [loading, setLoading] = useState(true)
     const [selectedSale, setSelectedSale] = useState(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const [selectedDate, setSelectedDate] = usePersistedState('montino_sales_date', () => {
+    
+    // View Mode State
+    const [viewMode, setViewMode] = usePersistedState('montino_sales_view', 'list') // 'list' | 'analytics'
+
+    // Date Range State
+    const [dateRange, setDateRange] = useState('day') // day, week, month, 3months, 6months, year
+    const [selectedDate, setSelectedDate] = useState(() => {
         const now = new Date()
         const year = now.getFullYear()
         const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -23,10 +31,23 @@ function SalesHistory() {
         return `${year}-${month}-${day}`
     })
 
-    // Payment Filter & Edit State
+    // Search & Filter State
+    const [searchTerm, setSearchTerm] = useState('')
     const [paymentFilter, setPaymentFilter] = usePersistedState('montino_sales_filter', 'todos')
+    
+    // Edit Payment State
     const [isEditingPayment, setIsEditingPayment] = useState(false)
     const [newPaymentMethod, setNewPaymentMethod] = useState('')
+
+    // Delete Sale Modal State
+    const [showDeleteSaleModal, setShowDeleteSaleModal] = useState(false)
+    const [saleToDeleteId, setSaleToDeleteId] = useState(null)
+    const [isDeleting, setIsDeleting] = useState(false)
+
+    // Return Product Modal State
+    const [showReturnProductModal, setShowReturnProductModal] = useState(false)
+    const [productToReturn, setProductToReturn] = useState(null)
+    const [quantityToReturn, setQuantityToReturn] = useState(1)
 
 
     const getLocalPrice = (prod) => Number(prod?.precioVentaLocal ?? prod?.precioProducto ?? 0)
@@ -49,9 +70,42 @@ function SalesHistory() {
             try {
                 // Parse selectedDate (YYYY-MM-DD) as local time
                 const [year, month, day] = selectedDate.split('-').map(Number)
+                
+                // Base date from selector
+                const baseDate = new Date(year, month - 1, day)
+                
+                let start = new Date(year, month - 1, day, 0, 0, 0, 0)
+                let end = new Date(year, month - 1, day, 23, 59, 59, 999)
 
-                const start = new Date(year, month - 1, day, 0, 0, 0, 0)
-                const end = new Date(year, month - 1, day, 23, 59, 59, 999)
+                // Adjust start date based on range
+                if (dateRange !== 'day') {
+                    // Reset start to beginning of day
+                    start = new Date(year, month - 1, day, 0, 0, 0, 0)
+                    
+                    const anchorDate = new Date(year, month - 1, day, 23, 59, 59, 999)
+                    end = anchorDate
+                    
+                    const startDate = new Date(year, month - 1, day, 0, 0, 0, 0)
+                    
+                    switch (dateRange) {
+                        case 'week':
+                            startDate.setDate(startDate.getDate() - 6) // 7 days total including today
+                            break
+                        case 'month':
+                            startDate.setMonth(startDate.getMonth() - 1)
+                            break
+                        case '3months':
+                            startDate.setMonth(startDate.getMonth() - 3)
+                            break
+                        case '6months':
+                            startDate.setMonth(startDate.getMonth() - 6)
+                            break
+                        case 'year':
+                            startDate.setFullYear(startDate.getFullYear() - 1)
+                            break
+                    }
+                    start = startDate
+                }
 
                 const q = query(
                     collection(db, 'sales'),
@@ -76,7 +130,7 @@ function SalesHistory() {
         }
 
         fetchSales()
-    }, [selectedDate])
+    }, [selectedDate, dateRange])
 
     const handleViewDetails = (sale) => {
         setSelectedSale(sale)
@@ -108,157 +162,449 @@ function SalesHistory() {
         }
     }
 
+    // --- Delete Sale Logic ---
+    const confirmDeleteSale = (saleId) => {
+        setSaleToDeleteId(saleId)
+        setShowDeleteSaleModal(true)
+    }
+
+    const executeDeleteSale = async () => {
+        if (!saleToDeleteId) return
+
+        setIsDeleting(true)
+        const saleId = saleToDeleteId
+        const saleToDelete = sales.find(s => s.id === saleId)
+        
+        if (!saleToDelete) {
+            setIsDeleting(false)
+            setShowDeleteSaleModal(false)
+            return
+        }
+
+        try {
+            const batch = writeBatch(db)
+
+            // 1. Restaurar stock
+            for (const prod of saleToDelete.productos) {
+                const q = query(collection(db, 'productos'), where('idProducto', '==', prod.idProducto))
+                const querySnapshot = await getDocs(q)
+                
+                if (!querySnapshot.empty) {
+                    const productDoc = querySnapshot.docs[0]
+                    const currentStock = productDoc.data().cantidadProducto || 0
+                    const productRef = doc(db, 'productos', productDoc.id)
+                    batch.update(productRef, { 
+                        cantidadProducto: currentStock + prod.cantidad 
+                    })
+                }
+            }
+
+            // 2. Eliminar venta
+            const saleRef = doc(db, 'sales', saleId)
+            batch.delete(saleRef)
+
+            await batch.commit()
+
+            // Update local state
+            setSales(sales.filter(s => s.id !== saleId))
+            if (selectedSale?.id === saleId) {
+                setIsModalOpen(false)
+                setSelectedSale(null)
+            }
+            toast.success('Venta eliminada y stock restaurado')
+        } catch (error) {
+            console.error('Error deleting sale:', error)
+            toast.error('Error al eliminar la venta')
+        } finally {
+            setIsDeleting(false)
+            setShowDeleteSaleModal(false)
+            setSaleToDeleteId(null)
+        }
+    }
+
+    // --- Return Product Logic ---
+    const initiateReturnProduct = (index) => {
+        if (!selectedSale) return
+        const product = selectedSale.productos[index]
+        setProductToReturn({ 
+            index, 
+            product, 
+            maxQuantity: product.cantidad 
+        })
+        setQuantityToReturn(1) // Default to returning 1
+        setShowReturnProductModal(true)
+    }
+
+    const executeReturnProduct = async () => {
+        if (!selectedSale || !productToReturn) return
+
+        const qty = Number(quantityToReturn)
+        if (qty <= 0 || qty > productToReturn.maxQuantity) {
+            toast.error('Cantidad inválida')
+            return
+        }
+
+        setIsDeleting(true)
+        const productIndex = productToReturn.index
+        const productToRemove = selectedSale.productos[productIndex]
+        
+        try {
+            const batch = writeBatch(db)
+
+            // 1. Restaurar stock (cantidad devuelta)
+            const q = query(collection(db, 'productos'), where('idProducto', '==', productToRemove.idProducto))
+            const querySnapshot = await getDocs(q)
+            
+            if (!querySnapshot.empty) {
+                const productDoc = querySnapshot.docs[0]
+                const currentStock = productDoc.data().cantidadProducto || 0
+                const productRef = doc(db, 'productos', productDoc.id)
+                batch.update(productRef, { 
+                    cantidadProducto: currentStock + qty 
+                })
+            }
+
+            // 2. Actualizar venta
+            const newProducts = [...selectedSale.productos]
+            
+            if (qty === productToReturn.maxQuantity) {
+                // Eliminar producto completo si se devuelve todo
+                newProducts.splice(productIndex, 1)
+            } else {
+                // Reducir cantidad
+                newProducts[productIndex] = {
+                    ...productToRemove,
+                    cantidad: productToRemove.cantidad - qty
+                }
+            }
+
+            // Si no quedan productos, eliminamos la venta completa
+            if (newProducts.length === 0) {
+                const saleRef = doc(db, 'sales', selectedSale.id)
+                batch.delete(saleRef)
+                
+                await batch.commit()
+                
+                setSales(sales.filter(s => s.id !== selectedSale.id))
+                setIsModalOpen(false)
+                setSelectedSale(null)
+                toast.success('Venta eliminada por no tener productos')
+                return
+            }
+
+            // Recalcular totales
+            // Recalcular total venta sumando todos los items
+            const newTotalVenta = newProducts.reduce((acc, p) => acc + (p.cantidad * getLocalPrice(p)), 0)
+            
+            // Recalcular ganancia
+            // Restamos la ganancia proporcional a la cantidad devuelta
+            const profitPerUnit = (getLocalPrice(productToRemove) - (productToRemove.precioOriginal || 0))
+            const profitToRemove = profitPerUnit * qty
+            const newTotalGanancia = (selectedSale.totalGanancia || 0) - profitToRemove
+
+            const saleRef = doc(db, 'sales', selectedSale.id)
+            batch.update(saleRef, {
+                productos: newProducts,
+                totalVenta: newTotalVenta,
+                totalGanancia: newTotalGanancia
+            })
+
+            await batch.commit()
+
+            // Update local state
+            const updatedSale = { 
+                ...selectedSale, 
+                productos: newProducts, 
+                totalVenta: newTotalVenta, 
+                totalGanancia: newTotalGanancia 
+            }
+            
+            setSelectedSale(updatedSale)
+            setSales(sales.map(s => s.id === selectedSale.id ? updatedSale : s))
+            toast.success(`Se devolvieron ${qty} unidad(es) al inventario`)
+
+        } catch (error) {
+            console.error('Error removing product from sale:', error)
+            toast.error('Error al actualizar la venta')
+        } finally {
+            setIsDeleting(false)
+            setShowReturnProductModal(false)
+            setProductToReturn(null)
+        }
+    }
+
     const filteredSales = sales.filter(sale => {
-        if (paymentFilter === 'todos') return true
-        return sale.tipoPago === paymentFilter
+        // Payment Filter
+        if (paymentFilter !== 'todos' && sale.tipoPago !== paymentFilter) {
+            return false
+        }
+        
+        // Search Filter
+        if (searchTerm.trim()) {
+            const term = searchTerm.toLowerCase().trim()
+            const idMatch = sale.id.toLowerCase().includes(term)
+            const clientMatch = sale.nombreCliente?.toLowerCase().includes(term)
+            const productMatch = sale.productos.some(p => 
+                p.nombreProducto.toLowerCase().includes(term) ||
+                (p.idProducto && p.idProducto.toString().toLowerCase().includes(term))
+            )
+            
+            if (!idMatch && !productMatch && !clientMatch) return false
+        }
+
+        return true
     })
 
     const totalSalesAmount = filteredSales.reduce((acc, sale) => acc + (sale.totalVenta || 0), 0)
     const totalSalesCount = filteredSales.length
 
-    if (loading) {
-        return (
-            <div className="space-y-8">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-2">
-                        <Skeleton className="h-10 w-64" />
-                        <Skeleton className="h-5 w-48" />
-                    </div>
-                    <div className="flex gap-3">
-                        <Skeleton className="h-10 w-32" />
-                        <Skeleton className="h-10 w-40" />
-                    </div>
-                </div>
-                <Card className="p-0 overflow-hidden">
-                    <div className="p-4 space-y-4">
-                        {[...Array(8)].map((_, i) => (
-                            <Skeleton key={i} className="h-16 w-full rounded-xl" />
-                        ))}
-                    </div>
-                </Card>
-            </div>
-        )
-    }
-
     return (
         <div className="space-y-8">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-white">Historial de Ventas</h2>
-                    <p className="text-slate-400 text-sm">Registro de transacciones del día.</p>
+                    <p className="text-slate-400 text-sm">Registro de transacciones.</p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                    {/* Stats Card */}
-                    <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
-                        <div className="flex items-center gap-2 border-r border-white/10 pr-4">
-                            <div className="bg-emerald-500/20 p-1.5 rounded-lg text-emerald-400">
-                                <DollarSign className="w-4 h-4" />
+                <div className="flex flex-col gap-3 w-full xl:w-auto">
+                    {/* Top Row of Filters: Stats + View Toggle + Search */}
+                    <div className="flex flex-col sm:flex-row gap-3">
+                         {/* View Toggle - NEW */}
+                         <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 shrink-0 h-[42px]">
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={cn(
+                                    "flex items-center gap-2 px-3 rounded-lg text-sm font-medium transition-all",
+                                    viewMode === 'list' 
+                                        ? "bg-primary text-white shadow" 
+                                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                                )}
+                            >
+                                <List className="w-4 h-4" />
+                                <span className="hidden sm:inline">Lista</span>
+                            </button>
+                            <button
+                                onClick={() => setViewMode('analytics')}
+                                className={cn(
+                                    "flex items-center gap-2 px-3 rounded-lg text-sm font-medium transition-all",
+                                    viewMode === 'analytics' 
+                                        ? "bg-primary text-white shadow" 
+                                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                                )}
+                            >
+                                <BarChart3 className="w-4 h-4" />
+                                <span className="hidden sm:inline">Gráficos</span>
+                            </button>
+                        </div>
+
+                         {/* Stats Card - Hidden on mobile if analytics view active to save space? No, keep it. */}
+                        <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-2 min-h-[42px] whitespace-nowrap">
+                            <div className="flex items-center gap-2 border-r border-white/10 pr-4">
+                                <div className="bg-emerald-500/20 p-1.5 rounded-lg text-emerald-400">
+                                    <DollarSign className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Total</p>
+                                    <p className="text-lg font-bold text-emerald-400 leading-tight">
+                                        {loading ? '...' : formatCLP(totalSalesAmount)}
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Total</p>
-                                <p className="text-lg font-bold text-emerald-400 leading-tight">
-                                    {formatCLP(totalSalesAmount)}
-                                </p>
+                            <div className="flex items-center gap-2">
+                                <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
+                                    <Search className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Ventas</p>
+                                    <p className="text-lg font-bold text-white leading-tight">
+                                        {loading ? '...' : totalSalesCount}
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
-                                <Search className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Ventas</p>
-                                <p className="text-lg font-bold text-white leading-tight">
-                                    {totalSalesCount}
-                                </p>
-                            </div>
+
+                        {/* Search Bar */}
+                        <div className="relative flex-1">
+                            <input
+                                type="text"
+                                placeholder="Buscar por ID o producto..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full h-[42px] bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                            />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                         </div>
                     </div>
 
-                    <div className="flex gap-2">
-                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10">
-                            <Filter className="w-4 h-4 text-slate-400" />
+                    {/* Bottom Row of Filters: Selects + Date */}
+                    <div className="flex flex-wrap sm:flex-nowrap gap-2">
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10 flex-1 min-w-[120px]">
+                            <Filter className="w-4 h-4 text-slate-400 shrink-0" />
                             <select
                                 value={paymentFilter}
                                 onChange={(e) => setPaymentFilter(e.target.value)}
-                                className="bg-transparent border-none text-white focus:outline-none text-sm [&>option]:bg-slate-900"
+                                className="w-full bg-transparent border-none text-white focus:outline-none text-sm [&>option]:bg-slate-900"
                             >
-                                <option value="todos">Todos</option>
+                                <option value="todos">Todos los pagos</option>
                                 <option value="efectivo">Efectivo</option>
                                 <option value="tarjeta">Tarjeta</option>
+                                <option value="fiado">Fiado</option>
+                                <option value="abono">Abono</option>
+                            </select>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10 flex-1 min-w-[140px]">
+                            <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                            <select
+                                value={dateRange}
+                                onChange={(e) => setDateRange(e.target.value)}
+                                className="w-full bg-transparent border-none text-white focus:outline-none text-sm [&>option]:bg-slate-900"
+                            >
+                                <option value="day">Día específico</option>
+                                <option value="week">Última semana</option>
+                                <option value="month">Último mes</option>
+                                <option value="3months">Últimos 3 meses</option>
+                                <option value="6months">Últimos 6 meses</option>
+                                <option value="year">Último año</option>
                             </select>
                         </div>
 
-                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10">
-                            <Calendar className="w-4 h-4 text-slate-400" />
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10 flex-1 min-w-[130px]">
                             <input
                                 type="date"
                                 value={selectedDate}
                                 onChange={(e) => setSelectedDate(e.target.value)}
-                                className="bg-transparent border-none text-white focus:outline-none text-sm [&::-webkit-calendar-picker-indicator]:invert"
+                                className="bg-transparent border-none text-white focus:outline-none text-sm [&::-webkit-calendar-picker-indicator]:invert w-full"
                             />
                         </div>
                     </div>
                 </div>
             </div>
 
-            <Card className="overflow-hidden p-0 border-white/10">
-                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="border-b border-white/10 bg-white/5">
-                                <th className="px-4 py-3 font-medium text-slate-300 text-sm">Fecha</th>
-                                <th className="px-4 py-3 font-medium text-slate-300 text-sm hidden sm:table-cell">ID</th>
-                                <th className="px-4 py-3 font-medium text-slate-300 text-sm">Items</th>
-                                <th className="px-4 py-3 font-medium text-slate-300 text-sm">Pago</th>
-                                <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Total</th>
-                                <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {filteredSales.map((sale) => (
-                                <tr key={sale.id} className="hover:bg-white/5 transition-colors group">
-                                    <td className="px-4 py-3 text-slate-300">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar className="w-4 h-4 text-slate-500" />
-                                            {formatDate(sale.fechaVenta)}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-500 font-mono text-xs hidden sm:table-cell">
-                                        {sale.id.slice(0, 8)}
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-300">
-                                        {sale.productos.length} items
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className={cn(
-                                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border capitalize",
-                                            sale.tipoPago === 'efectivo'
-                                                ? "bg-primary/10 text-primary border-primary/20"
-                                                : "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                                        )}>
-                                            {sale.tipoPago === 'efectivo' ? <Banknote className="w-3 h-3" /> : <CreditCard className="w-3 h-3" />}
-                                            {sale.tipoPago}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3 font-bold text-emerald-400 text-right">
-                                        {formatCLP(sale.totalVenta)}
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                        <button
-                                            onClick={() => handleViewDetails(sale)}
-                                            className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                            title="Ver Detalle"
-                                        >
-                                            <Eye className="w-5 h-5" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+            {loading ? (
+                 <div className="space-y-4">
+                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                         <div className="space-y-2">
+                             <Skeleton className="h-10 w-64" />
+                             <Skeleton className="h-5 w-48" />
+                         </div>
+                         <div className="flex gap-3">
+                             <Skeleton className="h-10 w-32" />
+                             <Skeleton className="h-10 w-40" />
+                         </div>
+                     </div>
+                     <Card className="p-0 overflow-hidden">
+                         <div className="p-4 space-y-4">
+                             {[...Array(8)].map((_, i) => (
+                                 <Skeleton key={i} className="h-16 w-full rounded-xl" />
+                             ))}
+                         </div>
+                     </Card>
+                 </div>
+            ) : (
+                <>
+                    {viewMode === 'list' ? (
+                        <Card className="overflow-hidden p-0 border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-white/10 bg-white/5">
+                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm">Fecha</th>
+                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm hidden sm:table-cell">ID</th>
+                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm">Cliente</th>
+                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm">Items</th>
+                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm">Pago</th>
+                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Total</th>
+                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {filteredSales.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="6" className="px-4 py-8 text-center text-slate-500">
+                                                    {searchTerm ? 'No se encontraron resultados para tu búsqueda' : 'No se encontraron ventas para este período'}
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredSales.map((sale) => (
+                                                <tr key={sale.id} className="hover:bg-white/5 transition-colors group">
+                                                    <td className="px-4 py-3 text-slate-300">
+                                                        <div className="flex items-center gap-2">
+                                                            <Calendar className="w-4 h-4 text-slate-500" />
+                                                            {formatDate(sale.fechaVenta)}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-slate-500 font-mono text-xs hidden sm:table-cell">
+                                                        {sale.id.slice(0, 8)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {sale.nombreCliente ? (
+                                                            <div className="flex flex-col">
+                                                                <span className="font-medium text-white text-sm">{sale.nombreCliente}</span>
+                                                                {(sale.tipoPago === 'fiado' || sale.tipoPago === 'abono') && (
+                                                                    <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                                                                        {sale.tipoPago === 'fiado' ? 'Deudor' : 'Cliente'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-600">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-slate-300">
+                                                        {sale.productos.length} items
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={cn(
+                                                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border capitalize",
+                                                            sale.tipoPago === 'efectivo'
+                                                                ? "bg-primary/10 text-primary border-primary/20"
+                                                                : sale.tipoPago === 'abono'
+                                                                    ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                                                                    : sale.tipoPago === 'fiado'
+                                                                        ? "bg-red-500/10 text-red-400 border-red-500/20"
+                                                                        : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                                        )}>
+                                                            {sale.tipoPago === 'efectivo' ? <Banknote className="w-3 h-3" /> : 
+                                                             sale.tipoPago === 'abono' ? <DollarSign className="w-3 h-3" /> :
+                                                             sale.tipoPago === 'fiado' ? <User className="w-3 h-3" /> :
+                                                             <CreditCard className="w-3 h-3" />}
+                                                            {sale.tipoPago}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 font-bold text-emerald-400 text-right">
+                                                        {formatCLP(sale.totalVenta)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                onClick={() => handleViewDetails(sale)}
+                                                                className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                                                title="Ver Detalle"
+                                                            >
+                                                                <Eye className="w-5 h-5" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => confirmDeleteSale(sale.id)}
+                                                                className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                                title="Eliminar Venta"
+                                                            >
+                                                                <Trash2 className="w-5 h-5" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    ) : (
+                        <SalesAnalytics sales={filteredSales} dateRange={dateRange} />
+                    )}
+                </>
+            )}
 
             {/* Sale Details Modal */}
             <Modal
@@ -321,16 +667,25 @@ function SalesHistory() {
                             <h4 className="text-sm font-medium text-slate-300 mb-3">Productos</h4>
                             <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                                 {selectedSale.productos.map((prod, index) => (
-                                    <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                                    <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 group hover:border-white/10 transition-colors">
                                         <div>
                                             <p className="text-white font-medium">{prod.nombreProducto}</p>
                                             <p className="text-xs text-slate-400">
                                                 {prod.cantidad} x {formatCLP(getLocalPrice(prod))}
                                             </p>
                                         </div>
-                                        <p className="text-white font-medium">
-                                            {formatCLP(prod.cantidad * getLocalPrice(prod))}
-                                        </p>
+                                        <div className="flex items-center gap-4">
+                                            <p className="text-white font-medium">
+                                                {formatCLP(prod.cantidad * getLocalPrice(prod))}
+                                            </p>
+                                            <button
+                                                onClick={() => initiateReturnProduct(index)}
+                                                className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Devolver producto"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -339,6 +694,104 @@ function SalesHistory() {
                         <div className="pt-4 border-t border-white/10 flex justify-between items-center">
                             <p className="text-slate-400">Total Pagado</p>
                             <p className="text-2xl font-bold text-emerald-400">{formatCLP(selectedSale.totalVenta)}</p>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Confirm Delete Sale Modal */}
+            <Modal
+                isOpen={showDeleteSaleModal}
+                onClose={() => setShowDeleteSaleModal(false)}
+                title="Eliminar Venta"
+                className="max-w-md"
+            >
+                <div className="space-y-6">
+                    <div className="flex flex-col items-center justify-center p-4 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
+                            <AlertTriangle className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-lg font-medium text-white">¿Estás seguro?</h3>
+                        <p className="text-slate-400 text-sm">
+                            Esta acción eliminará la venta permanentemente y devolverá todos los productos al inventario.
+                        </p>
+                    </div>
+                    <div className="flex justify-end gap-3">
+                        <Button variant="secondary" onClick={() => setShowDeleteSaleModal(false)} disabled={isDeleting}>
+                            Cancelar
+                        </Button>
+                        <Button 
+                            className="bg-red-500 hover:bg-red-600 text-white border-none" 
+                            onClick={executeDeleteSale} 
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? 'Eliminando...' : 'Eliminar Venta'}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Confirm Return/Reduce Product Modal */}
+            <Modal
+                isOpen={showReturnProductModal}
+                onClose={() => setShowReturnProductModal(false)}
+                title="Devolver Producto"
+                className="max-w-md"
+            >
+                {productToReturn && (
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <p className="text-white font-medium">{productToReturn.product.nombreProducto}</p>
+                            <p className="text-slate-400 text-sm">
+                                Cantidad comprada: <span className="text-white font-mono">{productToReturn.maxQuantity}</span>
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm text-slate-400">Cantidad a devolver al inventario</label>
+                            <div className="flex items-center gap-3">
+                                <Button 
+                                    variant="secondary" 
+                                    className="w-10 h-10 p-0"
+                                    onClick={() => setQuantityToReturn(Math.max(1, quantityToReturn - 1))}
+                                >
+                                    -
+                                </Button>
+                                <Input
+                                    type="number"
+                                    min="1"
+                                    max={productToReturn.maxQuantity}
+                                    value={quantityToReturn}
+                                    onChange={(e) => setQuantityToReturn(Number(e.target.value))}
+                                    className="text-center font-mono"
+                                />
+                                <Button 
+                                    variant="secondary" 
+                                    className="w-10 h-10 p-0"
+                                    onClick={() => setQuantityToReturn(Math.min(productToReturn.maxQuantity, quantityToReturn + 1))}
+                                >
+                                    +
+                                </Button>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">
+                                {quantityToReturn === productToReturn.maxQuantity 
+                                    ? "Se eliminará el producto de la venta."
+                                    : `Quedarán ${productToReturn.maxQuantity - quantityToReturn} unidad(es) en la venta.`
+                                }
+                            </p>
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-2">
+                            <Button variant="secondary" onClick={() => setShowReturnProductModal(false)} disabled={isDeleting}>
+                                Cancelar
+                            </Button>
+                            <Button 
+                                className="bg-red-500 hover:bg-red-600 text-white border-none" 
+                                onClick={executeReturnProduct} 
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? 'Procesando...' : 'Confirmar Devolución'}
+                            </Button>
                         </div>
                     </div>
                 )}

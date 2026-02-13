@@ -43,7 +43,7 @@ function EditProduct() {
                     })
                 } else {
                     toast.error('Producto no encontrado')
-                    navigate('/')
+                    navigate('/productos')
                 }
             } catch (error) {
                 console.error("Error al obtener producto:", error)
@@ -76,7 +76,7 @@ function EditProduct() {
                 precioProducto: Number(producto.precioVentaLocal)
             })
             toast.success('Producto actualizado con éxito')
-            navigate('/')
+            navigate('/productos')
         } catch (error) {
             console.error("Error al actualizar producto:", error)
             toast.error('Error al actualizar producto')
@@ -114,7 +114,7 @@ function EditProduct() {
             <div className="mb-8 flex items-center gap-4">
                 <Button
                     variant="ghost"
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/productos')}
                     className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                 >
                     <ArrowLeft className="w-6 h-6 text-white" />
