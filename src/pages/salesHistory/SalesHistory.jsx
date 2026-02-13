@@ -355,7 +355,11 @@ function SalesHistory() {
         return true
     })
 
-    const totalSalesAmount = filteredSales.reduce((acc, sale) => acc + (sale.totalVenta || 0), 0)
+    const totalSalesAmount = filteredSales.reduce((acc, sale) => {
+        // No sumar fiado al total
+        if (sale.tipoPago === 'fiado') return acc
+        return acc + (sale.totalVenta || 0)
+    }, 0)
     const totalSalesCount = filteredSales.length
 
     return (
@@ -449,7 +453,6 @@ function SalesHistory() {
                                 <option value="efectivo">Efectivo</option>
                                 <option value="tarjeta">Tarjeta</option>
                                 <option value="fiado">Fiado</option>
-                                <option value="abono">Abono</option>
                             </select>
                         </div>
                         
@@ -541,9 +544,9 @@ function SalesHistory() {
                                                         {sale.nombreCliente ? (
                                                             <div className="flex flex-col">
                                                                 <span className="font-medium text-white text-sm">{sale.nombreCliente}</span>
-                                                                {(sale.tipoPago === 'fiado' || sale.tipoPago === 'abono') && (
+                                                                {sale.tipoPago === 'fiado' && (
                                                                     <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
-                                                                        {sale.tipoPago === 'fiado' ? 'Deudor' : 'Cliente'}
+                                                                        Deudor
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -558,15 +561,14 @@ function SalesHistory() {
                                                         <span className={cn(
                                                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border capitalize",
                                                             sale.tipoPago === 'efectivo'
-                                                                ? "bg-primary/10 text-primary border-primary/20"
-                                                                : sale.tipoPago === 'abono'
+                                                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                                                : sale.tipoPago === 'tarjeta'
                                                                     ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
                                                                     : sale.tipoPago === 'fiado'
                                                                         ? "bg-red-500/10 text-red-400 border-red-500/20"
-                                                                        : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                                                        : "bg-slate-500/10 text-slate-400 border-slate-500/20"
                                                         )}>
                                                             {sale.tipoPago === 'efectivo' ? <Banknote className="w-3 h-3" /> : 
-                                                             sale.tipoPago === 'abono' ? <DollarSign className="w-3 h-3" /> :
                                                              sale.tipoPago === 'fiado' ? <User className="w-3 h-3" /> :
                                                              <CreditCard className="w-3 h-3" />}
                                                             {sale.tipoPago}

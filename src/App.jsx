@@ -9,6 +9,7 @@ import Dashboard from './pages/dashboard/Dashboard'
 import WebOrders from './pages/webOrders/WebOrders'
 import CashClose from './pages/cashClose/CashClose'
 import Clients from './pages/clients/Clients'
+import ClientDetails from './pages/clients/ClientDetails'
 import { Layout } from './components/Layout'
 import { ThemeProvider } from './context/ThemeContext'
 
@@ -20,6 +21,7 @@ function App() {
         <Routes>
           <Route path="/" element={<CashClose />} />
           <Route path="/clientes" element={<Clients />} />
+          <Route path="/clientes/:id" element={<ClientDetails />} />
           <Route path="/productos" element={<ProductList />} />
           <Route path="/crear" element={<CreateProducts onProductCreated={() => window.location.href = '/productos'} />} />
           <Route path="/editar/:id" element={<EditProduct />} />
