@@ -139,11 +139,11 @@ export function Layout({ children }) {
                 {/* Main Content */}
                 <main 
                     className={cn(
-                        "flex-1 p-8 transition-all duration-300",
+                        "flex-1 p-12 transition-all duration-300",
                         isCollapsed ? "ml-20" : "ml-64"
                     )}
                 >
-                    <div className="max-w-7xl mx-auto">
+                    <div className="w-full h-full">
                         {children}
                     </div>
                 </main>

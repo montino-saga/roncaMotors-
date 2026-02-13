@@ -5,7 +5,7 @@ import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
-import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, X, Trash2, AlertTriangle, ChevronDown, BarChart3, List, User } from 'lucide-react'
+import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, X, Trash2, AlertTriangle, ChevronDown, BarChart3, List, User, Pencil } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { toast } from 'sonner'
 import { Button } from '../../components/ui/Button'
@@ -582,9 +582,9 @@ function SalesHistory() {
                                                             <button
                                                                 onClick={() => handleViewDetails(sale)}
                                                                 className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                                                title="Ver Detalle"
+                                                                title="Editar Tipo de Pago / Ver Detalle"
                                                             >
-                                                                <Eye className="w-5 h-5" />
+                                                                <Pencil className="w-5 h-5" />
                                                             </button>
                                                             <button
                                                                 onClick={() => confirmDeleteSale(sale.id)}

@@ -1,38 +1,45 @@
 import { useState, useEffect } from 'react'
-import { collection, getDocs, orderBy, query, limit, where, Timestamp } from 'firebase/firestore'
+import { collection, getDocs, orderBy, query, where, Timestamp } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, PieChart, Pie, Cell, Legend
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    BarChart, Bar, Cell
 } from 'recharts'
-import { DollarSign, ShoppingBag, TrendingUp, CreditCard, Calendar, Percent, Clock } from 'lucide-react'
+import { 
+    DollarSign, ShoppingBag, TrendingUp, CreditCard, Calendar, 
+    User, Wallet, AlertCircle, Clock, Package, ArrowUpRight, ArrowDownRight
+} from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { useTheme } from '../../context/ThemeContext'
 
 function Dashboard() {
     const [sales, setSales] = useState([])
+    const [clients, setClients] = useState([])
+    const [products, setProducts] = useState([])
     const [loading, setLoading] = useState(true)
     const { settings } = useTheme()
+    
     const [metrics, setMetrics] = useState({
-        totalRevenue: 0,
+        totalCashFlow: 0,
+        totalCreditSales: 0,
+        totalPendingDebt: 0,
         totalProfit: 0,
         totalOrders: 0,
         averageOrderValue: 0,
-        profitMargin: 0
+        profitMargin: 0,
+        lowStockCount: 0
     })
+
     const [chartsData, setChartsData] = useState({
         salesOverTime: [],
         topProducts: [],
-        paymentMethods: [],
-        categorySales: [],
         hourlySales: [],
-        categoryProfit: []
     })
 
     // Date Filter State
-    const [dateRange, setDateRange] = useState('week') // week, month, 3months, 6months, year, custom
+    const [dateRange, setDateRange] = useState('week')
     const [customStart, setCustomStart] = useState('')
     const [customEnd, setCustomEnd] = useState('')
 
@@ -54,34 +61,47 @@ function Dashboard() {
                 } else if (dateRange === '3months') {
                     startDate.setMonth(startDate.getMonth() - 3)
                     startDate.setHours(0, 0, 0, 0)
-                } else if (dateRange === '6months') {
-                    startDate.setMonth(startDate.getMonth() - 6)
-                    startDate.setHours(0, 0, 0, 0)
                 } else if (dateRange === 'year') {
-                    startDate.setMonth(0, 1) // Jan 1st
+                    startDate.setMonth(0, 1)
                     startDate.setHours(0, 0, 0, 0)
                 } else if (dateRange === 'custom' && customStart && customEnd) {
                     startDate = new Date(customStart + 'T00:00:00')
                     endDate = new Date(customEnd + 'T23:59:59')
                 }
 
-                // Firestore Query
-                const q = query(
+                // 1. Fetch Sales
+                const qSales = query(
                     collection(db, 'sales'),
                     where('fechaVenta', '>=', Timestamp.fromDate(startDate)),
                     where('fechaVenta', '<=', Timestamp.fromDate(endDate)),
                     orderBy('fechaVenta', 'desc')
                 )
-
-                const querySnapshot = await getDocs(q)
+                const salesSnapshot = await getDocs(qSales)
                 const salesData = []
-
-                querySnapshot.forEach((doc) => {
+                salesSnapshot.forEach((doc) => {
                     salesData.push({ id: doc.id, ...doc.data() })
                 })
 
+                // 2. Fetch Clients (Snapshot)
+                const qClients = query(collection(db, 'clients'))
+                const clientsSnapshot = await getDocs(qClients)
+                const clientsData = []
+                clientsSnapshot.forEach((doc) => {
+                    clientsData.push({ id: doc.id, ...doc.data() })
+                })
+
+                // 3. Fetch Products (Snapshot for Stock)
+                const qProducts = query(collection(db, 'productos'))
+                const productsSnapshot = await getDocs(qProducts)
+                const productsData = []
+                productsSnapshot.forEach((doc) => {
+                    productsData.push({ id: doc.id, ...doc.data() })
+                })
+
                 setSales(salesData)
-                processMetrics(salesData)
+                setClients(clientsData)
+                setProducts(productsData)
+                processMetrics(salesData, clientsData, productsData)
             } catch (error) {
                 console.error("Error fetching dashboard data:", error)
             } finally {
@@ -94,57 +114,86 @@ function Dashboard() {
         }
     }, [dateRange, customStart, customEnd])
 
-    const processMetrics = (data) => {
-        // 1. KPI Metrics
-        const totalRevenue = data.reduce((acc, curr) => acc + (curr.totalVenta || 0), 0)
-        const totalProfit = data.reduce((acc, curr) => acc + (curr.totalGanancia || 0), 0)
-        const totalOrders = data.length
-        const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
-        const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0
+    const processMetrics = (salesData, clientsData, productsData) => {
+        // --- Financial Metrics ---
+        const totalCashFlow = salesData.reduce((acc, curr) => {
+            if (curr.tipoPago === 'efectivo' || curr.tipoPago === 'tarjeta' || curr.tipoPago === 'abono' || curr.isAbono) {
+                return acc + (curr.totalVenta || 0)
+            }
+            return acc
+        }, 0)
+
+        const totalCreditSales = salesData.reduce((acc, curr) => {
+            if (curr.tipoPago === 'fiado') {
+                return acc + (curr.totalVenta || 0)
+            }
+            return acc
+        }, 0)
+
+        const totalPendingDebt = clientsData.reduce((acc, curr) => acc + (curr.currentDebt || 0), 0)
+
+        const totalProfit = salesData.reduce((acc, curr) => {
+            if (curr.tipoPago === 'abono' || curr.isAbono) return acc
+            return acc + (curr.totalGanancia || 0)
+        }, 0)
+
+        const totalOrders = salesData.filter(s => s.tipoPago !== 'abono' && !s.isAbono).length
+        const averageOrderValue = totalOrders > 0 ? (totalCashFlow + totalCreditSales) / totalOrders : 0
+        const totalRevenueVolume = totalCashFlow + totalCreditSales
+        const profitMargin = totalRevenueVolume > 0 ? (totalProfit / totalRevenueVolume) * 100 : 0
+        
+        // Low Stock (Threshold < 5)
+        const lowStockCount = productsData.filter(p => (p.cantidadProducto || 0) < 5).length
 
         setMetrics({
-            totalRevenue,
+            totalCashFlow,
+            totalCreditSales,
+            totalPendingDebt,
             totalProfit,
             totalOrders,
             averageOrderValue,
-            profitMargin
+            profitMargin,
+            lowStockCount
         })
 
-        // 2. Sales Over Time (Last 7 Days)
-        const last7Days = [...Array(7)].map((_, i) => {
-            const d = new Date()
-            d.setDate(d.getDate() - i)
-            // Use local date string YYYY-MM-DD
-            const year = d.getFullYear()
-            const month = String(d.getMonth() + 1).padStart(2, '0')
-            const day = String(d.getDate()).padStart(2, '0')
-            return `${year}-${month}-${day}`
-        }).reverse()
+        // --- Charts Data ---
 
-        const salesOverTime = last7Days.map(dateStr => {
-            const daySales = data.filter(sale => {
-                if (!sale.fechaVenta) return false
-                const d = sale.fechaVenta.toDate()
-                const year = d.getFullYear()
-                const month = String(d.getMonth() + 1).padStart(2, '0')
-                const day = String(d.getDate()).padStart(2, '0')
-                const saleDateStr = `${year}-${month}-${day}`
-                return saleDateStr === dateStr
+        // 1. Sales Over Time
+        const salesByDay = {}
+        salesData.forEach(sale => {
+            if (!sale.fechaVenta) return
+            if (sale.tipoPago === 'abono' || sale.isAbono) return
+
+            const date = sale.fechaVenta.toDate().toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' })
+            if (!salesByDay[date]) salesByDay[date] = 0
+            salesByDay[date] += sale.totalVenta
+        })
+
+        const salesOverTime = Object.entries(salesByDay)
+            .map(([date, ventas]) => ({ date, ventas }))
+            .sort((a, b) => {
+                const [da, ma] = a.date.split('/')
+                const [db, mb] = b.date.split('/')
+                return new Date(2024, ma - 1, da) - new Date(2024, mb - 1, db)
             })
 
-            // Create date object treating the string as local time
-            const [y, m, d] = dateStr.split('-').map(Number)
-            const localDate = new Date(y, m - 1, d)
-
-            return {
-                date: localDate.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric' }),
-                ventas: daySales.reduce((acc, curr) => acc + (curr.totalVenta || 0), 0)
-            }
+        // 2. Hourly Sales
+        const hourlyCount = Array(24).fill(0)
+        salesData.forEach(sale => {
+            if (!sale.fechaVenta) return
+            const hour = sale.fechaVenta.toDate().getHours()
+            hourlyCount[hour]++
         })
+        
+        // Filter only hours with sales to clean up chart
+        const hourlySales = hourlyCount
+            .map((count, hour) => ({ hour: `${hour}:00`, count }))
+            .filter(item => item.count > 0)
 
         // 3. Top Products
         const productSales = {}
-        data.forEach(sale => {
+        salesData.forEach(sale => {
+            if (sale.tipoPago === 'abono' || sale.isAbono) return
             sale.productos.forEach(prod => {
                 if (productSales[prod.nombreProducto]) {
                     productSales[prod.nombreProducto] += prod.cantidad
@@ -153,307 +202,288 @@ function Dashboard() {
                 }
             })
         })
-
         const topProducts = Object.entries(productSales)
             .map(([name, count]) => ({ name, count }))
             .sort((a, b) => b.count - a.count)
             .slice(0, 5)
 
-        // 4. Payment Methods
-        const paymentMethodsCount = { efectivo: 0, tarjeta: 0 }
-        data.forEach(sale => {
-            const type = sale.tipoPago || 'efectivo'
-            paymentMethodsCount[type] = (paymentMethodsCount[type] || 0) + 1
-        })
-
-        const paymentMethods = [
-            { name: 'Efectivo', value: paymentMethodsCount.efectivo },
-            { name: 'Tarjeta', value: paymentMethodsCount.tarjeta }
-        ]
-
-        // 5. Category Sales
-        const categorySalesObj = {}
-        data.forEach(sale => {
-            sale.productos.forEach(prod => {
-                const cat = prod.categoriaProducto || 'Sin Categoría'
-                const price = Number(prod.precioVentaLocal ?? prod.precioProducto ?? 0)
-                if (categorySalesObj[cat]) {
-                    categorySalesObj[cat] += (price * prod.cantidad)
-                } else {
-                    categorySalesObj[cat] = (price * prod.cantidad)
-                }
-            })
-        })
-
-        const categorySales = Object.entries(categorySalesObj)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 5)
-
         setChartsData({
             salesOverTime,
-            topProducts,
-            paymentMethods,
-            categorySales
+            hourlySales,
+            topProducts
         })
     }
 
-    const COLORS = [settings.primaryColor, '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
-
     if (loading) {
-        return (
-            <div className="space-y-8">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-2">
-                        <Skeleton className="h-10 w-64" />
-                        <Skeleton className="h-5 w-48" />
-                    </div>
-                    <Skeleton className="h-10 w-40" />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                    {[...Array(5)].map((_, i) => (
-                        <Skeleton key={i} className="h-32 w-full rounded-xl" />
-                    ))}
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Skeleton className="h-96 w-full rounded-xl" />
-                    <Skeleton className="h-96 w-full rounded-xl" />
-                </div>
-            </div>
-        )
+        return <div className="p-8 text-center text-slate-400">Cargando Dashboard...</div>
     }
 
     return (
-        <div className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-6 pb-8 h-full flex flex-col">
+            {/* --- Header & Filters --- */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
                 <div>
-                    <h2 className="text-3xl font-bold text-white mb-2">Dashboard Analytics</h2>
-                    <p className="text-slate-400">Resumen general de tu negocio.</p>
+                    <h2 className="text-2xl font-bold text-white">Resumen General</h2>
+                    <p className="text-slate-400 text-sm">Estado actual de tu negocio en tiempo real.</p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-xl border border-white/10">
+                    <Calendar className="w-4 h-4 text-slate-400 ml-2" />
                     <select
                         value={dateRange}
                         onChange={(e) => setDateRange(e.target.value)}
-                        className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="bg-transparent border-none text-white focus:outline-none text-sm py-1.5 pr-8 [&>option]:bg-slate-900 cursor-pointer"
                     >
-                        <option value="week" className="bg-slate-900">Semana</option>
-                        <option value="month" className="bg-slate-900">Mes</option>
-                        <option value="3months" className="bg-slate-900">Últimos 3 meses</option>
-                        <option value="6months" className="bg-slate-900">Últimos 6 meses</option>
-                        <option value="year" className="bg-slate-900">Año</option>
-                        <option value="custom" className="bg-slate-900">Personalizado</option>
+                        <option value="week">Última Semana</option>
+                        <option value="month">Este Mes</option>
+                        <option value="3months">3 Meses</option>
+                        <option value="year">Este Año</option>
+                        <option value="custom">Personalizado</option>
                     </select>
-
-                    {dateRange === 'custom' && (
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="date"
-                                value={customStart}
-                                onChange={(e) => setCustomStart(e.target.value)}
-                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-                            />
-                            <span className="text-slate-500">-</span>
-                            <input
-                                type="date"
-                                value={customEnd}
-                                onChange={(e) => setCustomEnd(e.target.value)}
-                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-                            />
-                        </div>
-                    )}
                 </div>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                <Card className="p-6 border-l-4 border-l-primary">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-primary/10 rounded-lg">
-                            <DollarSign className="w-6 h-6 text-primary" />
-                        </div>
-                        <span className="text-xs font-medium text-slate-400 bg-white/5 px-2 py-1 rounded">Total</span>
+            {/* --- Level 1: Financial KPIs (Money) --- */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
+                {/* Cash Flow */}
+                <Card className="p-5 border-l-4 border-l-emerald-500 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all">
+                    <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Wallet className="w-16 h-16 text-emerald-500" />
                     </div>
-                    <p className="text-slate-400 text-sm">Ingresos Totales</p>
-                    <h3 className="text-2xl font-bold text-white mt-1">{formatCLP(metrics.totalRevenue)}</h3>
-                </Card>
-
-                <Card className="p-6 border-l-4 border-l-emerald-500">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-emerald-500/10 rounded-lg">
-                            <TrendingUp className="w-6 h-6 text-emerald-500" />
-                        </div>
-                        <span className="text-xs font-medium text-slate-400 bg-white/5 px-2 py-1 rounded">Neto</span>
-                    </div>
-                    <p className="text-slate-400 text-sm">Ganancia Total</p>
-                    <h3 className="text-2xl font-bold text-white mt-1">{formatCLP(metrics.totalProfit)}</h3>
-                </Card>
-
-                <Card className="p-6 border-l-4 border-l-purple-500">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-purple-500/10 rounded-lg">
-                            <ShoppingBag className="w-6 h-6 text-purple-500" />
-                        </div>
-                        <span className="text-xs font-medium text-slate-400 bg-white/5 px-2 py-1 rounded">Ventas</span>
-                    </div>
-                    <p className="text-slate-400 text-sm">Total Pedidos</p>
-                    <h3 className="text-2xl font-bold text-white mt-1">{metrics.totalOrders}</h3>
-                </Card>
-
-                <Card className="p-6 border-l-4 border-l-orange-500">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-orange-500/10 rounded-lg">
-                            <CreditCard className="w-6 h-6 text-orange-500" />
-                        </div>
-                        <span className="text-xs font-medium text-slate-400 bg-white/5 px-2 py-1 rounded">Promedio</span>
-                    </div>
-                    <p className="text-slate-400 text-sm">Ticket Promedio</p>
-                    <h3 className="text-2xl font-bold text-white mt-1">{formatCLP(metrics.averageOrderValue)}</h3>
-                </Card>
-
-                <Card className="p-6 border-l-4 border-l-pink-500">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-pink-500/10 rounded-lg">
-                            <Percent className="w-6 h-6 text-pink-500" />
-                        </div>
-                        <span className="text-xs font-medium text-slate-400 bg-white/5 px-2 py-1 rounded">Eficiencia</span>
-                    </div>
-                    <p className="text-slate-400 text-sm">Margen de Ganancia</p>
-                    <h3 className="text-2xl font-bold text-white mt-1">{metrics.profitMargin.toFixed(1)}%</h3>
-                </Card>
-            </div>
-
-            {/* Charts Row 1 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="p-6">
-                    <h3 className="text-lg font-semibold text-white mb-6">Ventas de la Semana</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartsData.salesOverTime}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                <XAxis dataKey="date" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                                <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} tickFormatter={(value) => `$${value / 1000}k`} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff' }}
-                                    formatter={(value) => [formatCLP(value), 'Ventas']}
-                                />
-                                <Line type="monotone" dataKey="ventas" stroke={settings.primaryColor} strokeWidth={3} dot={{ r: 4, fill: settings.primaryColor }} activeDot={{ r: 6 }} />
-                            </LineChart>
-                        </ResponsiveContainer>
+                    <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Ingresos Reales</p>
+                    <h3 className="text-3xl font-bold text-white">{formatCLP(metrics.totalCashFlow)}</h3>
+                    <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            En Caja
+                        </span>
                     </div>
                 </Card>
 
-                <Card className="p-6">
-                    <h3 className="text-lg font-semibold text-white mb-6">Horarios Punta (Pedidos por Hora)</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartsData.hourlySales}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                <XAxis dataKey="hour" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} interval={2} />
-                                <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff' }}
-                                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                                />
-                                <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                {/* Credit Sales */}
+                <Card className="p-5 border-l-4 border-l-red-500 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all">
+                    <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <CreditCard className="w-16 h-16 text-red-500" />
+                    </div>
+                    <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Ventas Fiadas</p>
+                    <h3 className="text-3xl font-bold text-white">{formatCLP(metrics.totalCreditSales)}</h3>
+                    <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full border border-red-500/20">
+                            Por Cobrar
+                        </span>
+                    </div>
+                </Card>
+
+                {/* Total Debt */}
+                <Card className="p-5 border-l-4 border-l-blue-500 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all">
+                    <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <User className="w-16 h-16 text-blue-500" />
+                    </div>
+                    <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Deuda Clientes</p>
+                    <h3 className="text-3xl font-bold text-white">{formatCLP(metrics.totalPendingDebt)}</h3>
+                    <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/20">
+                            Saldo Global
+                        </span>
+                    </div>
+                </Card>
+
+                {/* Profit */}
+                <Card className="p-5 border-l-4 border-l-purple-500 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all">
+                    <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <TrendingUp className="w-16 h-16 text-purple-500" />
+                    </div>
+                    <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Ganancia Estimada</p>
+                    <h3 className="text-3xl font-bold text-white">{formatCLP(metrics.totalProfit)}</h3>
+                    <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">
+                            Margen {metrics.profitMargin.toFixed(1)}%
+                        </span>
                     </div>
                 </Card>
             </div>
 
-            {/* Charts Row 2 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="p-6 lg:col-span-1">
-                    <h3 className="text-lg font-semibold text-white mb-6">Métodos de Pago</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={chartsData.paymentMethods}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {chartsData.paymentMethods.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff' }}
-                                />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
+            {/* --- Level 2: Operational Stats (Quick Glance) --- */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-800 rounded-lg text-slate-300">
+                            <ShoppingBag className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-400">Total Pedidos</p>
+                            <p className="text-lg font-bold text-white">{metrics.totalOrders}</p>
+                        </div>
                     </div>
-                </Card>
+                </div>
 
-                <Card className="p-6 lg:col-span-2">
-                    <h3 className="text-lg font-semibold text-white mb-6">Rentabilidad por Categoría</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartsData.categoryProfit} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-                                <XAxis type="number" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} tickFormatter={(value) => `$${value / 1000}k`} />
-                                <YAxis dataKey="name" type="category" width={100} stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff' }}
-                                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                                    formatter={(value) => [formatCLP(value), 'Ganancia']}
-                                />
-                                <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-800 rounded-lg text-slate-300">
+                            <DollarSign className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-400">Ticket Promedio</p>
+                            <p className="text-lg font-bold text-white">{formatCLP(metrics.averageOrderValue)}</p>
+                        </div>
                     </div>
-                </Card>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className={cn("p-2 rounded-lg", metrics.lowStockCount > 0 ? "bg-orange-500/20 text-orange-400" : "bg-slate-800 text-slate-300")}>
+                            <AlertCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-400">Stock Bajo</p>
+                            <p className={cn("text-lg font-bold", metrics.lowStockCount > 0 ? "text-orange-400" : "text-white")}>
+                                {metrics.lowStockCount} productos
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {/* Recent Sales Table */}
-            <Card className="p-6">
-                <h3 className="text-lg font-semibold text-white mb-6">Ventas Recientes</h3>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="border-b border-white/10">
-                                <th className="p-3 text-sm font-medium text-slate-400">Fecha</th>
-                                <th className="p-3 text-sm font-medium text-slate-400">Productos</th>
-                                <th className="p-3 text-sm font-medium text-slate-400">Pago</th>
-                                <th className="p-3 text-sm font-medium text-slate-400 text-right">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {sales.slice(0, 5).map((sale) => (
-                                <tr key={sale.id} className="hover:bg-white/5 transition-colors">
-                                    <td className="p-3 text-sm text-slate-300">
-                                        {sale.fechaVenta?.toDate().toLocaleDateString('es-CL')}
-                                    </td>
-                                    <td className="p-3 text-sm text-white">
-                                        {sale.productos.length} items
-                                    </td>
-                                    <td className="p-3 text-sm">
-                                        <span className={cn(
-                                            "px-2 py-1 rounded-full text-xs font-medium capitalize",
-                                            sale.tipoPago === 'efectivo'
-                                                ? "bg-primary/10 text-primary border border-primary/20"
-                                                : "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+            {/* --- Level 3 & 4: Charts & Details Grid --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
+                
+                {/* Left Column: Charts (8 cols) */}
+                <div className="lg:col-span-8 flex flex-col gap-6">
+                    {/* Sales Trend */}
+                    <Card className="p-6 flex-1 min-h-[300px] bg-slate-900/50 border-white/10">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <TrendingUp className="w-5 h-5 text-primary" />
+                                Tendencia de Ventas
+                            </h3>
+                        </div>
+                        <div className="w-full h-[250px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartsData.salesOverTime}>
+                                    <defs>
+                                        <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor={settings.primaryColor} stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor={settings.primaryColor} stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                    <XAxis dataKey="date" stroke="#64748b" tick={{ fill: '#64748b', fontSize: 12 }} />
+                                    <YAxis stroke="#64748b" tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(value) => `$${value / 1000}k`} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '8px' }}
+                                        formatter={(value) => [formatCLP(value), 'Ventas']}
+                                    />
+                                    <Area type="monotone" dataKey="ventas" stroke={settings.primaryColor} fillOpacity={1} fill="url(#colorVentas)" strokeWidth={3} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+
+                    {/* Hourly Traffic */}
+                    <Card className="p-6 flex-1 min-h-[250px] bg-slate-900/50 border-white/10">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <Clock className="w-5 h-5 text-orange-400" />
+                                Horarios Punta
+                            </h3>
+                        </div>
+                        <div className="w-full h-[200px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={chartsData.hourlySales}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                    <XAxis dataKey="hour" stroke="#64748b" tick={{ fill: '#64748b', fontSize: 12 }} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '8px' }}
+                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                    />
+                                    <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Ventas" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+                </div>
+
+                {/* Right Column: Lists (4 cols) */}
+                <div className="lg:col-span-4 flex flex-col gap-6">
+                    {/* Top Products */}
+                    <Card className="p-0 bg-slate-900/50 border-white/10 overflow-hidden flex flex-col h-[350px]">
+                        <div className="p-4 border-b border-white/10 bg-white/5">
+                            <h3 className="font-bold text-white flex items-center gap-2">
+                                <Package className="w-4 h-4 text-purple-400" />
+                                Productos Top
+                            </h3>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                            {chartsData.topProducts.map((prod, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-white/5 transition-colors">
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <div className={cn(
+                                            "w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold shrink-0",
+                                            idx === 0 ? "bg-yellow-500/20 text-yellow-400" :
+                                            idx === 1 ? "bg-slate-500/20 text-slate-300" :
+                                            idx === 2 ? "bg-orange-700/20 text-orange-400" :
+                                            "bg-slate-800 text-slate-500"
                                         )}>
-                                            {sale.tipoPago}
-                                        </span>
-                                    </td>
-                                    <td className="p-3 text-sm font-medium text-emerald-400 text-right">
-                                        {formatCLP(sale.totalVenta)}
-                                    </td>
-                                </tr>
+                                            {idx + 1}
+                                        </div>
+                                        <span className="text-sm text-slate-200 truncate">{prod.name}</span>
+                                    </div>
+                                    <span className="text-xs font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded">
+                                        {prod.count}
+                                    </span>
+                                </div>
                             ))}
-                        </tbody>
-                    </table>
+                            {chartsData.topProducts.length === 0 && (
+                                <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+                                    Sin datos
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+
+                    {/* Recent Transactions */}
+                    <Card className="p-0 bg-slate-900/50 border-white/10 overflow-hidden flex flex-col flex-1 min-h-[300px]">
+                        <div className="p-4 border-b border-white/10 bg-white/5">
+                            <h3 className="font-bold text-white flex items-center gap-2">
+                                <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+                                Últimas Ventas
+                            </h3>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar">
+                            <table className="w-full text-left border-collapse">
+                                <tbody className="divide-y divide-white/5">
+                                    {sales.slice(0, 8).map((sale) => (
+                                        <tr key={sale.id} className="hover:bg-white/5 transition-colors">
+                                            <td className="p-3">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm text-white font-medium">
+                                                        {sale.productos.length} items
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500">
+                                                        {sale.fechaVenta?.toDate().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="p-3 text-right">
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-sm font-bold text-emerald-400">
+                                                        {formatCLP(sale.totalVenta)}
+                                                    </span>
+                                                    <span className={cn(
+                                                        "text-[10px] capitalize px-1.5 rounded-sm",
+                                                        sale.tipoPago === 'fiado' ? "bg-red-500/20 text-red-400" : "text-slate-400"
+                                                    )}>
+                                                        {sale.tipoPago}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
                 </div>
-            </Card>
+            </div>
         </div>
     )
 }
