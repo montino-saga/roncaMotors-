@@ -1,19 +1,26 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getAuth } from "firebase/auth";
 
-
+// La configuración se lee desde variables de entorno (.env, prefijo VITE_).
+// Copia .env.example como .env y completa los valores.
 const firebaseConfig = {
-  apiKey: "AIzaSyAP7Af1h_-zBmBfL_A5K2uuJsJDFuOel0c",
-  authDomain: "local-js-d7712.firebaseapp.com",
-  databaseURL: "https://local-js-d7712-default-rtdb.firebaseio.com",
-  projectId: "local-js-d7712",
-  storageBucket: "local-js-d7712.firebasestorage.app",
-  messagingSenderId: "200538761653",
-  appId: "1:200538761653:web:571a969ac8a572328451fc",
-  measurementId: "G-XXD5WT5TV1"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
+// Aviso temprano si falta el .env (evita errores confusos de Firebase).
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  throw new Error(
+    "Faltan variables de entorno de Firebase. Copia .env.example como .env y completa los valores."
+  );
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -26,5 +33,6 @@ const db = initializeFirestore(app, {
 });
 
 const storage = getStorage(app);
+const auth = getAuth(app);
 
-export { db, storage };
+export { db, storage, auth };

@@ -19,7 +19,7 @@ function SalesHistory() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     
     // View Mode State
-    const [viewMode, setViewMode] = usePersistedState('montino_sales_view', 'list') // 'list' | 'analytics'
+    const [viewMode, setViewMode] = usePersistedState('roncamotors_sales_view', 'list') // 'list' | 'analytics'
 
     // Date Range State
     const [dateRange, setDateRange] = useState('day') // day, week, month, 3months, 6months, year
@@ -33,7 +33,7 @@ function SalesHistory() {
 
     // Search & Filter State
     const [searchTerm, setSearchTerm] = useState('')
-    const [paymentFilter, setPaymentFilter] = usePersistedState('montino_sales_filter', 'todos')
+    const [paymentFilter, setPaymentFilter] = usePersistedState('roncamotors_sales_filter', 'todos')
     
     // Edit Payment State
     const [isEditingPayment, setIsEditingPayment] = useState(false)

@@ -8,7 +8,7 @@ export function ThemeProvider({ children }) {
     const [settings, setSettings] = useState({
         logo: '',
         primaryColor: '#3b82f6',
-        businessName: 'Montino App'
+        businessName: 'Roncamotors'
     })
     const [loading, setLoading] = useState(true)
 

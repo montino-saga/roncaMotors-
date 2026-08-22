@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Panel admin: solo cuentas autorizadas explícitamente.
+    // Para agregar otro admin, suma su correo a la lista.
+    function esAdmin() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'samuelgajardo003@gmail.com'
+        ];
+    }
+
+    // Validación del pedido web (lo crea la landing pública sin cuenta).
+    function pedidoWebValido() {
+      let d = request.resource.data;
+      return d.productos is list
+        && d.productos.size() > 0
+        && d.productos.size() <= 100
+        && d.totalVenta is number
+        && d.totalVenta >= 0
+        && d.totalVenta <= 100000000
+        // Estado: si viene, solo puede ser 'pendiente' (el admin lo cambia después).
+        && (!('estado' in d) || d.estado == 'pendiente')
+        // Tipo de pago: si viene, debe ser un string corto.
+        && (!('tipoPago' in d) || (d.tipoPago is string && d.tipoPago.size() <= 30))
+        // Datos del cliente: si vienen, strings con tamaño acotado.
+        && (!('cliente' in d) || (
+          d.cliente is map
+          && (!('nombre' in d.cliente) || (d.cliente.nombre is string && d.cliente.nombre.size() <= 120))
+          && (!('email' in d.cliente) || (d.cliente.email is string && d.cliente.email.size() <= 120))
+          && (!('telefono' in d.cliente) || (d.cliente.telefono is string && d.cliente.telefono.size() <= 30))
+        ));
+    }
+
+    match /productos/{id} {
+      // Igual que antes: solo admin. Si la landing pública necesitara leer
+      // el catálogo desde esta base, cambia read a: allow read: if true;
+      allow read, write: if esAdmin();
+    }
+
+    match /clients/{id} {
+      allow read, write: if esAdmin();
+      match /movements/{mid} {
+        allow read, write: if esAdmin();
+      }
+    }
+
+    match /sales/{id} {
+      allow read, write: if esAdmin();
+    }
+
+    match /cash_registers/{id} {
+      allow read, write: if esAdmin();
+    }
+
+    match /settings/{id} {
+      allow read, write: if esAdmin();
+    }
+
+    // Pedidos web: crear abierto con validación; leer/editar/borrar solo admin.
+    match /salesWeb/{id} {
+      allow read, update, delete: if esAdmin();
+      allow create: if pedidoWebValido();
+    }
+
+    // Todo lo demás: cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

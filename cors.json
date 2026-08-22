@@ -1,19 +1,17 @@
 [
     {
         "origin": [
-            "*"
+            "https://base-de-prueba-cee39.web.app",
+            "https://base-de-prueba-cee39.firebaseapp.com",
+            "http://localhost:5173",
+            "http://localhost:4173"
         ],
         "method": [
             "GET",
-            "HEAD",
-            "PUT",
-            "POST",
-            "DELETE",
-            "OPTIONS"
+            "HEAD"
         ],
         "responseHeader": [
-            "Content-Type",
-            "Access-Control-Allow-Origin"
+            "Content-Type"
         ],
         "maxAgeSeconds": 3600
     }

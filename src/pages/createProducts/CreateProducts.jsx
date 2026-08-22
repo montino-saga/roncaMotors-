@@ -11,7 +11,7 @@ import { PlusCircle, Package, DollarSign, Layers, Image as ImageIcon, Save, Barc
 import { toast } from 'sonner'
 
 function CreateProducts({ onProductCreated }) {
-  const [nuevoProducto, setNuevoProducto] = usePersistedState('montino_create_product_draft', {
+  const [nuevoProducto, setNuevoProducto] = usePersistedState('roncamotors_create_product_draft', {
     nombreProducto: '',
     marcaProducto: '',
     categoriaProducto: '',

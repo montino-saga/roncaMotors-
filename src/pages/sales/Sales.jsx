@@ -14,11 +14,11 @@ import { printer } from '../../lib/printer'
 import { sounds } from '../../lib/sounds'
 
 function Sales() {
-    const [cart, setCart] = usePersistedState('montino_pos_cart', [])
+    const [cart, setCart] = usePersistedState('roncamotors_pos_cart', [])
     const [productId, setProductId] = useState('')
     const [loading, setLoading] = useState(false)
     const [processing, setProcessing] = useState(false)
-    const [paymentType, setPaymentType] = usePersistedState('montino_pos_payment_type', 'efectivo')
+    const [paymentType, setPaymentType] = usePersistedState('roncamotors_pos_payment_type', 'efectivo')
     const [isPrinterConnected, setIsPrinterConnected] = useState(false)
     const inputRef = useRef(null)
 

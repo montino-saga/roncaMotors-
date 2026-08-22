@@ -12,9 +12,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Montino App',
-        short_name: 'Montino',
-        description: 'Punto de Venta Montino',
+        name: 'Roncamotors',
+        short_name: 'Roncamotors',
+        description: 'Punto de Venta Roncamotors',
         theme_color: '#0f172a',
         icons: [
           {

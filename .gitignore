@@ -3,7 +3,6 @@ logs
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
@@ -11,6 +10,20 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Variables de entorno (NO subir a git)
+.env
+.env.*
+!.env.example
+
+# Firebase
+.firebase/
+firebase-debug.log
+*-debug.log
+
+# Documentos generados (esquemas / informes)
+esquema-roncamotors.*
+informe-ux-roncamotors.*
 
 # Editor directories and files
 .vscode/*

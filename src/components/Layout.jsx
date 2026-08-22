@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History, Globe, Lock, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History, Globe, Lock, ChevronLeft, ChevronRight, User, LogOut } from "lucide-react";
 import { cn } from "../lib/utils";
 import { motion } from "framer-motion";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 
 export function Layout({ children }) {
     const location = useLocation();
     const { settings, loading } = useTheme();
+    const { user, logout } = useAuth();
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     const navSections = [
@@ -123,16 +125,27 @@ export function Layout({ children }) {
                         ))}
                     </nav>
 
-                    <div className={cn("mt-auto pt-6 border-t border-white/10", isCollapsed ? "flex justify-center" : "")}>
+                    <div className={cn("mt-auto pt-6 border-t border-white/10 space-y-3", isCollapsed ? "flex flex-col items-center" : "")}>
                         <div className={cn("flex items-center gap-3", isCollapsed ? "justify-center" : "px-2")}>
                             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 shrink-0" />
                             {!isCollapsed && (
                                 <div className="overflow-hidden">
-                                    <p className="text-sm font-medium text-white truncate">Admin User</p>
-                                    <p className="text-xs text-slate-500 truncate">admin@montino.app</p>
+                                    <p className="text-sm font-medium text-white truncate">Administrador</p>
+                                    <p className="text-xs text-slate-500 truncate">{user?.email}</p>
                                 </div>
                             )}
                         </div>
+                        <button
+                            onClick={logout}
+                            title={isCollapsed ? "Cerrar sesión" : undefined}
+                            className={cn(
+                                "flex items-center gap-3 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors",
+                                isCollapsed ? "justify-center p-2.5" : "px-4 py-2.5 w-full"
+                            )}
+                        >
+                            <LogOut className="w-4 h-4 shrink-0" />
+                            {!isCollapsed && <span className="font-medium">Cerrar sesión</span>}
+                        </button>
                     </div>
                 </aside>
 

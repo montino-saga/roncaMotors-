@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Solo cuentas autorizadas pueden subir archivos.
+    function esAdmin() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'samuelgajardo003@gmail.com'
+        ];
+    }
+
+    // Imágenes de productos: lectura pública (catálogo web),
+    // escritura solo admin, con tope de tamaño y solo imágenes.
+    match /productos/{imagen} {
+      allow read: if true;
+      allow write: if esAdmin()
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Cualquier otra ruta del bucket: cerrada.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

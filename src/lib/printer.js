@@ -78,7 +78,7 @@ class PrinterService {
             await this.init();
             await this.alignCenter();
             await this.bold(true);
-            await this.send("MONTINO\n");
+            await this.send("RONCAMOTORS\n");
             await this.bold(false);
             await this.send("Punto de Venta\n");
             await this.send("--------------------------------\n");
