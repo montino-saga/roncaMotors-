@@ -28,6 +28,6 @@ jobs:
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE_DE_PRUEBA_CEE39 }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RONCAMOTORS_58FD3 }}
           channelId: live
-          projectId: base-de-prueba-cee39
+          projectId: roncamotors-58fd3
