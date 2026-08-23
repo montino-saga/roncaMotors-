@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed": "node scripts/seed-productos.mjs",
+    "seed:undo": "node scripts/seed-productos.mjs --undo"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -15,6 +17,7 @@
     "clsx": "^2.1.1",
     "firebase": "^12.18.0",
     "framer-motion": "^12.26.2",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
