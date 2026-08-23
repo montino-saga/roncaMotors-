@@ -1,11 +1,45 @@
 @import "tailwindcss";
 
+@custom-variant reduce-transparency {
+    @media (prefers-reduced-transparency: reduce) {
+        @slot;
+    }
+}
+
+@custom-variant more-contrast {
+    @media (prefers-contrast: more) {
+        @slot;
+    }
+}
+
+/* En una página de alto fijo, el aire del encabezado se lo quita a la tabla.
+   `tall:` da ese aire solo cuando hay altura de sobra. */
+@custom-variant tall {
+    @media (min-height: 800px) {
+        @slot;
+    }
+}
+
 @theme {
     --color-primary: var(--primary-color, #3b82f6);
 }
 
 :root {
     --primary-color: #3b82f6;
+}
+
+/* Altura exacta del área de contenido: el <main> del Layout aporta py-4 (2rem)
+   y, por debajo de md, la barra superior de 3.5rem. Una página con .page-fit
+   nunca genera scroll propio; el scroll vive dentro de sus paneles. */
+.page-fit {
+    height: calc(100dvh - 5.5rem);
+    min-height: 0;
+}
+
+@media (min-width: 48rem) {
+    .page-fit {
+        height: calc(100dvh - 2rem);
+    }
 }
 
 /* Custom Scrollbar */

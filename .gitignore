@@ -35,3 +35,6 @@ informe-ux-roncamotors.*
 *.njsproj
 *.sln
 *.sw?
+
+# Configuración local de Claude Code
+.claude/
