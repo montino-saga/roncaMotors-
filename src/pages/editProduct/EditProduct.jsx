@@ -9,6 +9,8 @@ import { ImageUpload } from '../../components/ui/ImageUpload'
 import { Save, ArrowLeft } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { cn } from '../../lib/utils'
+import { TASA_IVA, esAfecto, desglosar } from '../../lib/iva'
 import { Skeleton } from '../../components/ui/Skeleton'
 
 function EditProduct() {
@@ -26,6 +28,9 @@ function EditProduct() {
         imagenProducto: '',
         idProducto: ''
     })
+
+    const afecto = esAfecto(producto)
+    const desgloseLocal = desglosar(producto.precioVentaLocal, afecto)
 
     useEffect(() => {
         const obtenerProducto = async () => {
@@ -73,7 +78,8 @@ function EditProduct() {
                 precioVentaWeb: Number(producto.precioVentaWeb),
                 precioOriginal: Number(producto.precioOriginal),
                 cantidadProducto: Number(producto.cantidadProducto),
-                precioProducto: Number(producto.precioVentaLocal)
+                precioProducto: Number(producto.precioVentaLocal),
+                afectoIva: afecto
             })
             toast.success('Producto actualizado con éxito')
             navigate('/productos')
@@ -171,7 +177,26 @@ function EditProduct() {
 
                             {/* Pricing Section */}
                             <div className="space-y-4">
-                                <h3 className="text-lg font-semibold text-white border-b border-white/10 pb-2">Precios</h3>
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-2">
+                                    <h3 className="text-lg font-semibold text-white">Precios</h3>
+                                    <div className="flex rounded-lg bg-slate-950 border border-white/10 p-0.5" role="group">
+                                        {[[true, `Afecto a IVA ${TASA_IVA}%`], [false, 'Exento']].map(([v, txt]) => (
+                                            <button
+                                                key={String(v)}
+                                                type="button"
+                                                onClick={() => setProducto((p) => ({ ...p, afectoIva: v }))}
+                                                aria-pressed={afecto === v}
+                                                className={cn(
+                                                    "px-3 h-8 text-[11px] font-medium rounded-md transition-colors",
+                                                    "transition-transform duration-100 ease-out active:scale-[0.97]",
+                                                    afecto === v ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'
+                                                )}
+                                            >
+                                                {txt}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-emerald-400">Precio Local</label>
@@ -183,6 +208,11 @@ function EditProduct() {
                                             required
                                             className="border-emerald-500/20 focus:border-emerald-500/50"
                                         />
+                                        <p className="text-[11px] text-slate-500 tabular-nums">
+                                            {afecto
+                                                ? `Neto $${desgloseLocal.neto.toLocaleString('es-CL')} + IVA $${desgloseLocal.iva.toLocaleString('es-CL')}`
+                                                : 'Sin IVA'}
+                                        </p>
                                     </div>
 
                                     <div className="space-y-2">

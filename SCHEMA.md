@@ -37,6 +37,7 @@ Catálogo e inventario. Escriben: CreateProducts, EditProduct; el stock lo descu
 | `precioProducto` | number | **Legacy**: siempre se guarda igual a `precioVentaLocal` (compatibilidad con código antiguo) |
 | `cantidadProducto` | number | Stock actual. Se descuenta al vender y se restaura al devolver/eliminar ventas |
 | `imagenProducto` | string | URL de descarga de la imagen en Storage (puede ser `''`) |
+| `afectoIva` | boolean | `true` (por defecto) si `precioVentaLocal`/`precioVentaWeb` incluyen IVA 19%; `false` si el producto está exento. Los precios guardados son SIEMPRE el monto final que paga el cliente; el neto se deriva dividiendo entre 1,19. Productos anteriores a este campo se tratan como afectos |
 
 > Nota: el ID del documento es autogenerado por Firestore; `idProducto` es el identificador de negocio y las demás pantallas buscan por ese campo.
 
