@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { usePersistedState } from '../../hooks/usePersistedState'
-import { collection, getDocs, orderBy, query, where, doc, writeBatch, increment, Timestamp } from 'firebase/firestore'
+import { collection, getDoc, getDocs, orderBy, query, where, doc, writeBatch, increment, Timestamp } from 'firebase/firestore'
 import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
 import { descuentoItemsVenta, ventaConDescuento } from '../../lib/descuentos'
 import { db } from '../../db/firebase'
@@ -148,10 +148,13 @@ function SalesHistory() {
     const revertirFiado = async (batch, sale) => {
         if (sale.tipoPago !== 'fiado' || !sale.idCliente) return
         const clientRef = doc(db, 'clients', sale.idCliente)
-        batch.update(clientRef, {
-            currentDebt: increment(-(sale.totalVenta || 0)),
-            lastUpdated: Timestamp.now()
-        })
+        // El cliente puede haberse borrado y sus ventas siguen existiendo: update() a un doc ausente rompe el batch.
+        if ((await getDoc(clientRef)).exists()) {
+            batch.update(clientRef, {
+                currentDebt: increment(-(sale.totalVenta || 0)),
+                lastUpdated: Timestamp.now()
+            })
+        }
         const movs = await getDocs(query(
             collection(db, `clients/${sale.idCliente}/movements`),
             where('saleId', '==', sale.id)
@@ -159,8 +162,9 @@ function SalesHistory() {
         movs.forEach(m => { if (m.data().type === 'purchase') batch.delete(m.ref) })
     }
 
-    const registrarFiado = (batch, sale) => {
+    const registrarFiado = async (batch, sale) => {
         const clientRef = doc(db, 'clients', sale.idCliente)
+        if (!(await getDoc(clientRef)).exists()) throw new Error('cliente inexistente')
         batch.update(clientRef, {
             currentDebt: increment(sale.totalVenta || 0),
             lastUpdated: Timestamp.now()
@@ -197,7 +201,7 @@ function SalesHistory() {
             batch.update(saleRef, { tipoPago: newPaymentMethod, isFiado: newPaymentMethod === 'fiado' })
 
             if (selectedSale.tipoPago === 'fiado') await revertirFiado(batch, selectedSale)
-            else if (newPaymentMethod === 'fiado') registrarFiado(batch, selectedSale)
+            else if (newPaymentMethod === 'fiado') await registrarFiado(batch, selectedSale)
 
             await batch.commit()
 

@@ -19,7 +19,8 @@ function Panel() {
     return (
         <ThemeProvider>
             <Layout>
-                <Toaster position="bottom-right" theme="dark" richColors />
+                {/* Arriba: abajo a la derecha tapaba "Finalizar Venta" en el POS. */}
+                <Toaster position="top-right" theme="dark" richColors />
                 <Routes>
                     <Route path="/" element={<CashClose />} />
                     <Route path="/clientes" element={<Clients />} />

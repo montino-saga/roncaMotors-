@@ -308,13 +308,14 @@ function ProductList() {
     return c
   }, [enriquecidos])
 
-  const hasFilters = searchTerm !== '' || minStock !== '' || maxStock !== '' || alerta !== null
+  const hasFilters = searchTerm !== '' || minStock !== '' || maxStock !== '' || alerta !== null || orden !== ''
 
   const clearFilters = () => {
     setSearchTerm('')
     setMinStock('')
     setMaxStock('')
     setAlerta(null)
+    setOrden('')
     setCurrentPage(1)
   }
 
@@ -393,7 +394,8 @@ function ProductList() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             </div>
 
-            <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2 h-10">
+            <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2 h-10" title="Filtrar por stock">
+              <span className="text-xs text-slate-400 pr-0.5">Stock</span>
               <input
                 type="number"
                 placeholder="Min"

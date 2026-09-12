@@ -7,10 +7,12 @@ import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { formatCLP, cn } from '../../lib/utils'
 import { toast } from 'sonner'
-import { Lock, Unlock, DollarSign, TrendingUp, TrendingDown, History, AlertTriangle, Save } from 'lucide-react'
+import { Lock, Unlock, DollarSign, TrendingUp, TrendingDown, History, AlertTriangle, Trash2 } from 'lucide-react'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { useAuth } from '../../context/AuthContext'
 
 function CashClose() {
+    const { user } = useAuth()
     const [loading, setLoading] = useState(true)
     const [session, setSession] = useState(null)
     const [cashSales, setCashSales] = useState(0)
@@ -27,6 +29,9 @@ function CashClose() {
 
     // Confirm Close Modal State
     const [showConfirmCloseModal, setShowConfirmCloseModal] = useState(false)
+
+    // Índice (en `movements`) del movimiento a eliminar
+    const [movementToDelete, setMovementToDelete] = useState(null)
 
     useEffect(() => {
         fetchCurrentSession()
@@ -94,7 +99,7 @@ function CashClose() {
                 openingTime: Timestamp.now(),
                 status: 'open',
                 openingBalance: Number(openingAmount),
-                userId: "current_user", // Replace with auth user if available
+                userId: user?.uid || null,
                 movements: []
             }
             
@@ -115,9 +120,14 @@ function CashClose() {
     const handleAddMovement = async () => {
         if (!movementAmount || !movementDescription) return
         
+        const amount = Number(movementAmount)
+        if (!(amount > 0)) return toast.error("Ingresa un monto válido")
+        if (movementType === 'expense' && amount > expectedBalance) {
+            return toast.error(`No hay saldo suficiente en caja (${formatCLP(expectedBalance)})`)
+        }
+
         setProcessing(true)
         try {
-            const amount = Number(movementAmount)
             const newMovement = {
                 type: movementType,
                 amount: amount,
@@ -143,6 +153,26 @@ function CashClose() {
             toast.error("Error al registrar movimiento")
         } finally {
             setProcessing(false)
+        }
+    }
+
+    const executeDeleteMovement = async () => {
+        if (movementToDelete == null) return
+        setProcessing(true)
+        try {
+            const updatedMovements = movements.filter((_, i) => i !== movementToDelete)
+            const sessionRef = doc(db, 'cash_registers', session.id)
+            await updateDoc(sessionRef, { movements: updatedMovements })
+
+            setSession({ ...session, movements: updatedMovements })
+            setMovements(updatedMovements)
+            toast.success("Movimiento eliminado")
+        } catch (error) {
+            console.error("Error deleting movement:", error)
+            toast.error("Error al eliminar movimiento")
+        } finally {
+            setProcessing(false)
+            setMovementToDelete(null)
         }
     }
 
@@ -299,18 +329,27 @@ function CashClose() {
                         {movements.length === 0 ? (
                             <p className="text-slate-500 text-center py-8">No hay movimientos registrados</p>
                         ) : (
-                            [...movements].reverse().map((mov, i) => (
-                                <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-lg border border-white/5">
-                                    <div>
-                                        <p className="text-white font-medium">{mov.description}</p>
+                            movements.map((mov, i) => ({ mov, i })).reverse().map(({ mov, i }) => (
+                                <div key={i} className="flex justify-between items-center gap-3 p-3 bg-white/5 rounded-lg border border-white/5 group">
+                                    <div className="min-w-0">
+                                        <p className="text-white font-medium truncate">{mov.description}</p>
                                         <p className="text-xs text-slate-400">{mov.time.toDate().toLocaleTimeString('es-CL')}</p>
                                     </div>
-                                    <span className={cn(
-                                        "font-bold",
-                                        mov.type === 'income' ? "text-emerald-400" : "text-red-400"
-                                    )}>
-                                        {mov.type === 'income' ? '+' : '-'}{formatCLP(mov.amount)}
-                                    </span>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <span className={cn(
+                                            "font-bold",
+                                            mov.type === 'income' ? "text-emerald-400" : "text-red-400"
+                                        )}>
+                                            {mov.type === 'income' ? '+' : '-'}{formatCLP(mov.amount)}
+                                        </span>
+                                        <button
+                                            onClick={() => setMovementToDelete(i)}
+                                            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                            title="Eliminar movimiento"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}
@@ -402,6 +441,40 @@ function CashClose() {
                         <Button variant="secondary" onClick={() => setShowMovementModal(false)}>Cancelar</Button>
                         <Button onClick={handleAddMovement} disabled={processing}>
                             Guardar
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Delete Movement Modal */}
+            <Modal
+                isOpen={movementToDelete != null}
+                onClose={() => setMovementToDelete(null)}
+                title="Eliminar Movimiento"
+                className="max-w-md"
+            >
+                <div className="space-y-6">
+                    <div className="flex flex-col items-center justify-center p-4 text-center space-y-3">
+                        <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 mb-2">
+                            <AlertTriangle className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-xl font-medium text-white">¿Eliminar este movimiento?</h3>
+                        {movements[movementToDelete] && (
+                            <p className="text-slate-400">
+                                {movements[movementToDelete].description} · {movements[movementToDelete].type === 'income' ? '+' : '-'}{formatCLP(movements[movementToDelete].amount)}
+                            </p>
+                        )}
+                    </div>
+                    <div className="flex justify-end gap-3">
+                        <Button variant="secondary" onClick={() => setMovementToDelete(null)} disabled={processing}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20 border-none"
+                            onClick={executeDeleteMovement}
+                            disabled={processing}
+                        >
+                            {processing ? 'Eliminando...' : 'Eliminar'}
                         </Button>
                     </div>
                 </div>

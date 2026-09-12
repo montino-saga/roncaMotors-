@@ -36,10 +36,12 @@ export function SalesAnalytics({ sales, dateRange }) {
         const averageTicket = totalCount > 0 ? totalSales / totalCount : 0
         const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0
 
-        // Calcular ticket promedio efectivo vs tarjeta
         const cashSales = sales.filter(s => s.tipoPago === 'efectivo')
         const cardSales = sales.filter(s => s.tipoPago === 'tarjeta')
-        
+        const creditSales = sales.filter(s => s.tipoPago === 'fiado')
+        const suma = (arr) => arr.reduce((acc, s) => acc + (s.totalVenta || 0), 0)
+        const creditTotal = suma(creditSales)
+
         return {
             totalSales,
             totalProfit,
@@ -48,8 +50,12 @@ export function SalesAnalytics({ sales, dateRange }) {
             profitMargin,
             cashCount: cashSales.length,
             cardCount: cardSales.length,
-            cashTotal: cashSales.reduce((acc, s) => acc + (s.totalVenta || 0), 0),
-            cardTotal: cardSales.reduce((acc, s) => acc + (s.totalVenta || 0), 0),
+            creditCount: creditSales.length,
+            cashTotal: suma(cashSales),
+            cardTotal: suma(cardSales),
+            creditTotal,
+            // Mismo "Total" que el header del historial: lo fiado aún no entra a caja.
+            collectedTotal: totalSales - creditTotal,
         }
     }, [sales])
 
@@ -106,6 +112,9 @@ export function SalesAnalytics({ sales, dateRange }) {
                     </div>
                     <p className="text-xs text-emerald-400/60 mt-2">
                         {kpis.totalCount} transacciones
+                    </p>
+                    <p className="text-xs text-emerald-400/60 tabular-nums">
+                        cobrado {formatCLP(kpis.collectedTotal)} · fiado {formatCLP(kpis.creditTotal)}
                     </p>
                 </Card>
 
@@ -223,7 +232,8 @@ export function SalesAnalytics({ sales, dateRange }) {
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={[
                                 { name: 'Efectivo', value: kpis.cashTotal, count: kpis.cashCount, fill: '#10b981' },
-                                { name: 'Tarjeta', value: kpis.cardTotal, count: kpis.cardCount, fill: '#a855f7' }
+                                { name: 'Tarjeta', value: kpis.cardTotal, count: kpis.cardCount, fill: '#a855f7' },
+                                { name: 'Fiado', value: kpis.creditTotal, count: kpis.creditCount, fill: '#f59e0b' }
                             ]}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
                                 <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} />
