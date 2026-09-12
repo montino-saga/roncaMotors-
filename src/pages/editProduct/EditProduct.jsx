@@ -12,11 +12,15 @@ import { toast } from 'sonner'
 import { cn } from '../../lib/utils'
 import { TASA_IVA, esAfecto, desglosar } from '../../lib/iva'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { useDelayedLoading } from '../../hooks/useDelayedLoading'
+import { useConfirmarSalida } from '../../hooks/useConfirmarSalida'
+import { ConfirmarSalida } from '../../components/ui/ConfirmarSalida'
 
 function EditProduct() {
     const { id } = useParams()
     const navigate = useNavigate()
     const [loading, setLoading] = useState(true)
+    const mostrarSkeleton = useDelayedLoading(loading)
     const [producto, setProducto] = useState({
         nombreProducto: '',
         marcaProducto: '',
@@ -29,6 +33,10 @@ function EditProduct() {
         idProducto: ''
     })
 
+    const [original, setOriginal] = useState(null)
+    const sucio = original != null && JSON.stringify(producto) !== JSON.stringify(original)
+    const { blocker, liberar } = useConfirmarSalida(sucio)
+
     const afecto = esAfecto(producto)
     const desgloseLocal = desglosar(producto.precioVentaLocal, afecto)
 
@@ -40,12 +48,14 @@ function EditProduct() {
 
                 if (docSnap.exists()) {
                     const data = docSnap.data()
-                    setProducto({
+                    const cargado = {
                         ...data,
                         id: docSnap.id,
                         precioVentaLocal: data.precioVentaLocal ?? data.precioProducto ?? '',
                         precioVentaWeb: data.precioVentaWeb ?? ''
-                    })
+                    }
+                    setProducto(cargado)
+                    setOriginal(cargado)
                 } else {
                     toast.error('Producto no encontrado')
                     navigate('/productos')
@@ -82,6 +92,7 @@ function EditProduct() {
                 afectoIva: afecto
             })
             toast.success('Producto actualizado con éxito')
+            liberar()
             navigate('/productos')
         } catch (error) {
             console.error("Error al actualizar producto:", error)
@@ -90,6 +101,7 @@ function EditProduct() {
     }
 
     if (loading) {
+        if (!mostrarSkeleton) return null
         return (
             <div className="max-w-2xl mx-auto space-y-8">
                 <div className="flex items-center gap-4">
@@ -117,6 +129,7 @@ function EditProduct() {
 
     return (
         <div className="max-w-2xl mx-auto">
+            <ConfirmarSalida blocker={blocker} />
             <div className="mb-8 flex items-center gap-4">
                 <Button
                     variant="ghost"

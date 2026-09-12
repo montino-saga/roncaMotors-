@@ -1,18 +1,27 @@
-import { useLayoutEffect, useRef } from 'react'
+import { lazy, Suspense, useLayoutEffect, useRef } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
-import CreateProducts from './pages/createProducts/CreateProducts'
-import EditProduct from './pages/editProduct/EditProduct'
-import ProductList from './pages/productList/ProductList'
-import Sales from './pages/sales/Sales'
-import SalesHistory from './pages/salesHistory/SalesHistory'
-import Dashboard from './pages/dashboard/Dashboard'
-import WebOrders from './pages/webOrders/WebOrders'
-import CashClose from './pages/cashClose/CashClose'
-import Clients from './pages/clients/Clients'
-import ClientDetails from './pages/clients/ClientDetails'
 import Login from './pages/login/Login'
-import Settings from './pages/settings/Settings'
+import { VistaSkeleton } from './components/ui/Skeleton'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { AvisoConexion } from './components/AvisoConexion'
+import { AlertaCaja } from './components/AlertaCaja'
+import NotFound from './pages/notFound/NotFound'
+
+// Un chunk por vista: el bundle único pesaba 1.7 MB y el móvil lo bajaba
+// entero para abrir el POS. Login va eager: es lo primero que se ve.
+const CreateProducts = lazy(() => import('./pages/createProducts/CreateProducts'))
+const EditProduct = lazy(() => import('./pages/editProduct/EditProduct'))
+const ProductList = lazy(() => import('./pages/productList/ProductList'))
+const Sales = lazy(() => import('./pages/sales/Sales'))
+const SalesHistory = lazy(() => import('./pages/salesHistory/SalesHistory'))
+const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'))
+const WebOrders = lazy(() => import('./pages/webOrders/WebOrders'))
+const CashClose = lazy(() => import('./pages/cashClose/CashClose'))
+const Clients = lazy(() => import('./pages/clients/Clients'))
+const ClientDetails = lazy(() => import('./pages/clients/ClientDetails'))
+const Settings = lazy(() => import('./pages/settings/Settings'))
+const Analisis = lazy(() => import('./pages/analisis/Analisis'))
 import { Layout } from './components/Layout'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -49,8 +58,12 @@ function Panel() {
                 richColors
                 mobileOffset={{ top: 64, right: 12, left: 12 }}
             />
+            <AvisoConexion />
+            <AlertaCaja />
             <Layout>
                 <Vista key={pathname}>
+                <ErrorBoundary>
+                <Suspense fallback={<VistaSkeleton />}>
                 <Routes>
                     <Route path="/" element={<CashClose />} />
                     <Route path="/clientes" element={<Clients />} />
@@ -61,10 +74,14 @@ function Panel() {
                     <Route path="/ventas" element={<Sales />} />
                     <Route path="/historial" element={<SalesHistory />} />
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/analisis" element={<Analisis />} />
                     <Route path="/pedidos-web" element={<WebOrders />} />
                     <Route path="/cierre-caja" element={<CashClose />} />
                     <Route path="/configuracion" element={<Settings />} />
+                    <Route path="*" element={<NotFound />} />
                 </Routes>
+                </Suspense>
+                </ErrorBoundary>
                 </Vista>
             </Layout>
         </ThemeProvider>

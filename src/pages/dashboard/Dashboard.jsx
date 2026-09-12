@@ -1,4 +1,6 @@
+import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
+import { usePersistedState } from '../../hooks/usePersistedState'
 import { collection, getDocs, orderBy, query, where, Timestamp } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { useCatalogo } from '../../lib/catalogo'
@@ -13,6 +15,7 @@ import {
 } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { Skeleton, SkeletonCard, SkeletonKpis, SkeletonHeader } from '../../components/ui/Skeleton'
+import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { useTheme } from '../../context/ThemeContext'
 import { useAppearance } from '../../context/AppearanceContext'
 import { chartTheme } from '../../lib/chartTheme'
@@ -20,6 +23,7 @@ import { chartTheme } from '../../lib/chartTheme'
 function Dashboard() {
     const [sales, setSales] = useState([])
     const [loading, setLoading] = useState(true)
+    const mostrarSkeleton = useDelayedLoading(loading)
     const { settings } = useTheme()
     const ct = chartTheme(useAppearance().resolved)
     const { productos } = useCatalogo()
@@ -43,9 +47,9 @@ function Dashboard() {
     })
 
     // Date Filter State
-    const [dateRange, setDateRange] = useState('week')
-    const [customStart, setCustomStart] = useState('')
-    const [customEnd, setCustomEnd] = useState('')
+    const [dateRange, setDateRange] = usePersistedState('roncamotors_dashboard_range', 'week')
+    const [customStart, setCustomStart] = usePersistedState('roncamotors_dashboard_desde', '')
+    const [customEnd, setCustomEnd] = usePersistedState('roncamotors_dashboard_hasta', '')
 
     useEffect(() => {
         const fetchData = async () => {
@@ -98,6 +102,7 @@ function Dashboard() {
                 processMetrics(salesData, clientsData)
             } catch (error) {
                 console.error("Error fetching dashboard data:", error)
+                toast.error('No se pudieron cargar los datos del dashboard')
             } finally {
                 setLoading(false)
             }
@@ -205,6 +210,7 @@ function Dashboard() {
     }
 
     if (loading) {
+        if (!mostrarSkeleton) return null
         return (
             <div className="space-y-6 pb-8" aria-busy="true" aria-label="Cargando dashboard">
                 <SkeletonHeader actions={1} />
@@ -225,9 +231,9 @@ function Dashboard() {
     }
 
     return (
-        <div className="space-y-6 pb-8 h-full flex flex-col">
+        <div className="flex flex-col gap-4 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
             {/* --- Header & Filters --- */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
                 <div>
                     <h2 className="text-2xl font-bold text-white">Resumen General</h2>
                     <p className="text-slate-400 text-sm">Estado actual de tu negocio en tiempo real.</p>
@@ -268,246 +274,192 @@ function Dashboard() {
                 </div>
             </div>
 
-            {/* --- Level 1: Financial KPIs (Money) --- */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
-                {/* Cash Flow */}
-                <Card className="p-5 border-l-4 border-l-emerald-500 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all">
-                    <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Wallet className="w-16 h-16 text-emerald-500" />
-                    </div>
-                    <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Ingresos Reales</p>
-                    <h3 className="text-3xl font-bold text-white">{formatCLP(metrics.totalCashFlow)}</h3>
-                    <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                            En Caja
-                        </span>
+            {/* Bento: en lg 4 columnas × 6 filas iguales que llenan el alto; abajo
+                de lg, 2 columnas con scroll normal. Las gráficas miden por flex
+                (min-h-0), no por altura fija, para que quepan en cualquier pantalla. */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 lg:grid-rows-6 gap-4 flex-1 lg:min-h-0 auto-rows-auto">
+
+                {/* Tendencia — 2×3 */}
+                <Card className="col-span-2 lg:row-span-3 p-4 lg:p-5 bg-slate-900/50 flex flex-col min-h-0 order-3 lg:order-none">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2 mb-3 shrink-0">
+                        <TrendingUp className="w-5 h-5 text-primary" />
+                        Tendencia de Ventas
+                    </h3>
+                    <div className="h-56 lg:h-auto lg:flex-1 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartsData.salesOverTime} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor={settings.primaryColor} stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor={settings.primaryColor} stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+                                <XAxis dataKey="date" stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 11 }} />
+                                <YAxis stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 11 }} tickFormatter={(value) => `$${value / 1000}k`} />
+                                <Tooltip
+                                    contentStyle={ct.tooltip}
+                                    formatter={(value) => [formatCLP(value), 'Ventas']}
+                                />
+                                <Area type="monotone" dataKey="ventas" stroke={settings.primaryColor} fillOpacity={1} fill="url(#colorVentas)" strokeWidth={3} />
+                            </AreaChart>
+                        </ResponsiveContainer>
                     </div>
                 </Card>
 
-                {/* Credit Sales */}
-                <Card className="p-5 border-l-4 border-l-red-500 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all">
-                    <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <CreditCard className="w-16 h-16 text-red-500" />
-                    </div>
-                    <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Ventas Fiadas</p>
-                    <h3 className="text-3xl font-bold text-white">{formatCLP(metrics.totalCreditSales)}</h3>
-                    <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full border border-red-500/20">
-                            Por Cobrar
-                        </span>
+                {/* KPIs — 1×1 cada uno */}
+                <Kpi label="Ingresos Reales" value={formatCLP(metrics.totalCashFlow)} tag="En Caja" color="emerald" Icon={Wallet} className="order-1 lg:order-none" />
+                <Kpi label="Ganancia Estimada" value={formatCLP(metrics.totalProfit)} tag={`Margen ${metrics.profitMargin.toFixed(1)}%`} color="purple" Icon={TrendingUp} className="order-1 lg:order-none" />
+                <Kpi label="Ventas Fiadas" value={formatCLP(metrics.totalCreditSales)} tag="Por Cobrar" color="red" Icon={CreditCard} className="order-2 lg:order-none" />
+                <Kpi label="Deuda Clientes" value={formatCLP(metrics.totalPendingDebt)} tag="Saldo Global" color="blue" Icon={User} className="order-2 lg:order-none" />
+
+                {/* Operativo — 2×1: tres cifras rápidas en una tira */}
+                <Card className="col-span-2 p-3 lg:p-4 bg-slate-900/50 grid grid-cols-3 gap-2 items-center min-h-0 order-2 lg:order-none">
+                    <Mini Icon={ShoppingBag} label="Pedidos" value={metrics.totalOrders} />
+                    <Mini Icon={DollarSign} label="Ticket Promedio" value={formatCLP(metrics.averageOrderValue)} />
+                    <Mini Icon={AlertCircle} label="Stock Bajo" value={`${lowStockCount} prod.`} alerta={lowStockCount > 0} />
+                </Card>
+
+                {/* Horarios — 2×3 */}
+                <Card className="col-span-2 lg:row-span-3 p-4 lg:p-5 bg-slate-900/50 flex flex-col min-h-0 order-4 lg:order-none">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2 mb-3 shrink-0">
+                        <Clock className="w-5 h-5 text-orange-400" />
+                        Horarios Punta
+                    </h3>
+                    <div className="h-48 lg:h-auto lg:flex-1 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartsData.hourlySales} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+                                <XAxis dataKey="hour" stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 11 }} />
+                                <Tooltip
+                                    contentStyle={ct.tooltip}
+                                    cursor={{ fill: ct.cursor }}
+                                />
+                                <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Ventas" />
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
                 </Card>
 
-                {/* Total Debt */}
-                <Card className="p-5 border-l-4 border-l-blue-500 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all">
-                    <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <User className="w-16 h-16 text-blue-500" />
+                {/* Top productos — 1×3 */}
+                <Card className="col-span-2 sm:col-span-1 lg:row-span-3 p-0 bg-slate-900/50 overflow-hidden flex flex-col min-h-0 h-80 lg:h-auto order-5 lg:order-none">
+                    <div className="p-3 border-b border-white/10 bg-white/5 shrink-0">
+                        <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                            <Package className="w-4 h-4 text-purple-400" />
+                            Productos Top
+                        </h3>
                     </div>
-                    <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Deuda Clientes</p>
-                    <h3 className="text-3xl font-bold text-white">{formatCLP(metrics.totalPendingDebt)}</h3>
-                    <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/20">
-                            Saldo Global
-                        </span>
-                    </div>
-                </Card>
-
-                {/* Profit */}
-                <Card className="p-5 border-l-4 border-l-purple-500 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all">
-                    <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <TrendingUp className="w-16 h-16 text-purple-500" />
-                    </div>
-                    <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Ganancia Estimada</p>
-                    <h3 className="text-3xl font-bold text-white">{formatCLP(metrics.totalProfit)}</h3>
-                    <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">
-                            Margen {metrics.profitMargin.toFixed(1)}%
-                        </span>
-                    </div>
-                </Card>
-            </div>
-
-            {/* --- Level 2: Operational Stats (Quick Glance) --- */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-800 rounded-lg text-slate-300">
-                            <ShoppingBag className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-sm text-slate-400">Total Pedidos</p>
-                            <p className="text-lg font-bold text-white">{metrics.totalOrders}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-800 rounded-lg text-slate-300">
-                            <DollarSign className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-sm text-slate-400">Ticket Promedio</p>
-                            <p className="text-lg font-bold text-white">{formatCLP(metrics.averageOrderValue)}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className={cn("p-2 rounded-lg", lowStockCount > 0 ? "bg-orange-500/20 text-orange-400" : "bg-slate-800 text-slate-300")}>
-                            <AlertCircle className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-sm text-slate-400">Stock Bajo</p>
-                            <p className={cn("text-lg font-bold", lowStockCount > 0 ? "text-orange-400" : "text-white")}>
-                                {lowStockCount} productos
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* --- Level 3 & 4: Charts & Details Grid --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
-                
-                {/* Left Column: Charts (8 cols) */}
-                <div className="lg:col-span-8 flex flex-col gap-6">
-                    {/* Sales Trend */}
-                    <Card className="p-6 flex-1 min-h-[300px] bg-slate-900/50 border-white/10">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                <TrendingUp className="w-5 h-5 text-primary" />
-                                Tendencia de Ventas
-                            </h3>
-                        </div>
-                        <div className="w-full h-[250px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartsData.salesOverTime}>
-                                    <defs>
-                                        <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor={settings.primaryColor} stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor={settings.primaryColor} stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
-                                    <XAxis dataKey="date" stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 12 }} />
-                                    <YAxis stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 12 }} tickFormatter={(value) => `$${value / 1000}k`} />
-                                    <Tooltip
-                                        contentStyle={ct.tooltip}
-                                        formatter={(value) => [formatCLP(value), 'Ventas']}
-                                    />
-                                    <Area type="monotone" dataKey="ventas" stroke={settings.primaryColor} fillOpacity={1} fill="url(#colorVentas)" strokeWidth={3} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </Card>
-
-                    {/* Hourly Traffic */}
-                    <Card className="p-6 flex-1 min-h-[250px] bg-slate-900/50 border-white/10">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                <Clock className="w-5 h-5 text-orange-400" />
-                                Horarios Punta
-                            </h3>
-                        </div>
-                        <div className="w-full h-[200px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartsData.hourlySales}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
-                                    <XAxis dataKey="hour" stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 12 }} />
-                                    <Tooltip
-                                        contentStyle={ct.tooltip}
-                                        cursor={{ fill: ct.cursor }}
-                                    />
-                                    <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Ventas" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </Card>
-                </div>
-
-                {/* Right Column: Lists (4 cols) */}
-                <div className="lg:col-span-4 flex flex-col gap-6">
-                    {/* Top Products */}
-                    <Card className="p-0 bg-slate-900/50 border-white/10 overflow-hidden flex flex-col h-[350px]">
-                        <div className="p-4 border-b border-white/10 bg-white/5">
-                            <h3 className="font-bold text-white flex items-center gap-2">
-                                <Package className="w-4 h-4 text-purple-400" />
-                                Productos Top
-                            </h3>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                            {chartsData.topProducts.map((prod, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-white/5 transition-colors">
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <div className={cn(
-                                            "w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold shrink-0",
-                                            idx === 0 ? "bg-yellow-500/20 text-yellow-400" :
-                                            idx === 1 ? "bg-slate-500/20 text-slate-300" :
-                                            idx === 2 ? "bg-orange-700/20 text-orange-400" :
-                                            "bg-slate-800 text-slate-500"
-                                        )}>
-                                            {idx + 1}
-                                        </div>
-                                        <span className="text-sm text-slate-200 truncate">{prod.name}</span>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar min-h-0">
+                        {chartsData.topProducts.map((prod, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-colors">
+                                <div className="flex items-center gap-2.5 overflow-hidden">
+                                    <div className={cn(
+                                        "w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold shrink-0",
+                                        idx === 0 ? "bg-yellow-500/20 text-yellow-400" :
+                                        idx === 1 ? "bg-slate-500/20 text-slate-300" :
+                                        idx === 2 ? "bg-orange-700/20 text-orange-400" :
+                                        "bg-slate-800 text-slate-500"
+                                    )}>
+                                        {idx + 1}
                                     </div>
-                                    <span className="text-xs font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded">
-                                        {prod.count}
-                                    </span>
+                                    <span className="text-sm text-slate-200 truncate">{prod.name}</span>
                                 </div>
-                            ))}
-                            {chartsData.topProducts.length === 0 && (
-                                <div className="h-full flex items-center justify-center text-slate-500 text-sm">
-                                    Sin datos
-                                </div>
-                            )}
-                        </div>
-                    </Card>
+                                <span className="text-xs font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded shrink-0">
+                                    {prod.count}
+                                </span>
+                            </div>
+                        ))}
+                        {chartsData.topProducts.length === 0 && (
+                            <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+                                Sin datos
+                            </div>
+                        )}
+                    </div>
+                </Card>
 
-                    {/* Recent Transactions */}
-                    <Card className="p-0 bg-slate-900/50 border-white/10 overflow-hidden flex flex-col flex-1 min-h-[300px]">
-                        <div className="p-4 border-b border-white/10 bg-white/5">
-                            <h3 className="font-bold text-white flex items-center gap-2">
-                                <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-                                Últimas Ventas
-                            </h3>
-                        </div>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar">
-                            <table className="w-full text-left border-collapse">
-                                <tbody className="divide-y divide-white/5">
-                                    {sales.slice(0, 8).map((sale) => (
-                                        <tr key={sale.id} className="hover:bg-white/5 transition-colors">
-                                            <td className="p-3">
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm text-white font-medium">
-                                                        {sale.productos.length} items
-                                                    </span>
-                                                    <span className="text-[10px] text-slate-500">
-                                                        {sale.fechaVenta?.toDate().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="p-3 text-right">
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-sm font-bold text-emerald-400">
-                                                        {formatCLP(sale.totalVenta)}
-                                                    </span>
-                                                    <span className={cn(
-                                                        "text-[10px] capitalize px-1.5 rounded-sm",
-                                                        sale.tipoPago === 'fiado' ? "bg-red-500/20 text-red-400" : "text-slate-400"
-                                                    )}>
-                                                        {sale.tipoPago}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-                </div>
+                {/* Últimas ventas — 1×3 */}
+                <Card className="col-span-2 sm:col-span-1 lg:row-span-3 p-0 bg-slate-900/50 overflow-hidden flex flex-col min-h-0 h-80 lg:h-auto order-6 lg:order-none">
+                    <div className="p-3 border-b border-white/10 bg-white/5 shrink-0">
+                        <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                            <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+                            Últimas Ventas
+                        </h3>
+                    </div>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                        <table className="w-full text-left border-collapse">
+                            <tbody className="divide-y divide-white/5">
+                                {sales.slice(0, 12).map((sale) => (
+                                    <tr key={sale.id} className="hover:bg-white/5 transition-colors">
+                                        <td className="p-2.5">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm text-white font-medium">
+                                                    {sale.productos.length} items
+                                                </span>
+                                                <span className="text-[10px] text-slate-500">
+                                                    {sale.fechaVenta?.toDate().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="p-2.5 text-right">
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-sm font-bold text-emerald-400">
+                                                    {formatCLP(sale.totalVenta)}
+                                                </span>
+                                                <span className={cn(
+                                                    "text-[10px] capitalize px-1.5 rounded-sm",
+                                                    sale.tipoPago === 'fiado' ? "bg-red-500/20 text-red-400" : "text-slate-400"
+                                                )}>
+                                                    {sale.tipoPago}
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {sales.length === 0 && (
+                                    <tr><td className="p-6 text-center text-slate-500 text-sm">Sin ventas</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            </div>
+        </div>
+    )
+}
+
+const KPI_COLORES = {
+    emerald: { borde: "border-l-emerald-500", icono: "text-emerald-500", tag: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+    purple:  { borde: "border-l-purple-500",  icono: "text-purple-500",  tag: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
+    red:     { borde: "border-l-red-500",     icono: "text-red-500",     tag: "bg-red-500/10 text-red-400 border-red-500/20" },
+    blue:    { borde: "border-l-blue-500",    icono: "text-blue-500",    tag: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+}
+
+function Kpi({ label, value, tag, color, Icon, className }) {
+    const c = KPI_COLORES[color]
+    return (
+        <Card className={cn(
+            "p-4 border-l-4 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all",
+            "flex flex-col justify-center min-h-0 min-w-0", c.borde, className
+        )}>
+            <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Icon className={cn("w-12 h-12", c.icono)} />
+            </div>
+            <p className="text-slate-400 text-[11px] uppercase font-bold tracking-wider mb-0.5 truncate">{label}</p>
+            <h3 className="text-2xl font-bold text-white truncate">{value}</h3>
+            <span className={cn("text-[11px] px-2 py-0.5 rounded-full border self-start mt-1.5", c.tag)}>{tag}</span>
+        </Card>
+    )
+}
+
+function Mini({ Icon, label, value, alerta }) {
+    return (
+        <div className="flex items-center gap-2.5 min-w-0">
+            <div className={cn("p-2 rounded-lg shrink-0", alerta ? "bg-orange-500/20 text-orange-400" : "bg-slate-800 text-slate-300")}>
+                <Icon className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+                <p className="text-xs text-slate-400 truncate">{label}</p>
+                <p className={cn("text-base font-bold truncate", alerta ? "text-orange-400" : "text-white")}>{value}</p>
             </div>
         </div>
     )

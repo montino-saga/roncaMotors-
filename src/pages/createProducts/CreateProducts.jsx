@@ -329,8 +329,9 @@ function CreateProducts() {
 
       {/* Por debajo de lg todo scrollea junto en un único hilo; a partir de lg
           la imagen se queda fija y sólo el formulario se desplaza. */}
+      {/* pb: el scroll recorta la sombra de la última Card si no tiene aire. */}
       <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-visible custom-scrollbar
-                      grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
+                      grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 pb-10 lg:pb-0">
         {/* Imagen */}
         <div className="lg:col-span-4 lg:h-full lg:min-h-0">
           <Card className="p-4 border-l-4 border-l-orange-500 lg:h-full flex flex-col bg-slate-900/50">
@@ -359,7 +360,7 @@ function CreateProducts() {
         {/* Formulario. @container: los campos se reparten según el ancho de esta
             columna, que depende también de si el sidebar está desplegado. */}
         <div className="@container lg:col-span-8 lg:h-full lg:min-h-0 lg:overflow-y-auto
-                        lg:pr-2 custom-scrollbar flex flex-col gap-4">
+                        lg:pr-2 lg:pb-10 custom-scrollbar flex flex-col gap-4">
 
           {/* 1. Inventory & ID (PRIORITY) */}
           <Card className="p-4 @lg:p-5 border-l-4 border-l-purple-500 bg-slate-900/50 shrink-0">
