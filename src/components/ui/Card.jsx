@@ -5,7 +5,7 @@ export function Card({ className, children, ...props }) {
     return (
         <motion.div
             className={cn(
-                "card-entra bg-glass backdrop-blur-lg border border-white/20 rounded-2xl p-6 shadow-xl text-white",
+                "card-entra glass bg-glass rounded-2xl p-6 text-white",
                 className
             )}
             {...props}

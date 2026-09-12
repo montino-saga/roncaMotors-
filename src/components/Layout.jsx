@@ -1,18 +1,23 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useSyncExternalStore } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import {
     Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History,
-    Globe, Lock, PanelLeft, PanelLeftClose, User, LogOut, Menu, Settings
+    Globe, Lock, PanelLeft, PanelLeftClose, User, LogOut, Menu, Settings,
+    Search, Sun, Moon, Plus, FlaskConical
 } from "lucide-react";
 import {
     motion, MotionConfig, animate, useMotionValue, useSpring,
     useTransform, useReducedMotion
 } from "framer-motion";
 import { cn } from "../lib/utils";
+import { PRESS } from "../lib/motion";
 import { usePersistedState } from "../hooks/usePersistedState";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import { useAppearance } from "../context/AppearanceContext";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { CommandPalette } from "./CommandPalette";
 
 const W_OPEN = 264;
 const W_SHUT = 76;
@@ -31,19 +36,6 @@ const SPRING_WIDTH = { stiffness: 247, damping: 31.4, mass: 1, restDelta: 0.5 };
 // No es v²/2a: es decaimiento exponencial, igual que la inercia del scroll.
 const project = (velocity, deceleration = 0.998) =>
     (velocity / 1000) * deceleration / (1 - deceleration);
-
-function useMediaQuery(query) {
-    const subscribe = useCallback((onChange) => {
-        const mq = window.matchMedia(query);
-        mq.addEventListener("change", onChange);
-        return () => mq.removeEventListener("change", onChange);
-    }, [query]);
-    return useSyncExternalStore(
-        subscribe,
-        () => window.matchMedia(query).matches,
-        () => false
-    );
-}
 
 const navSections = [
     {
@@ -66,6 +58,7 @@ const navSections = [
         title: "Reportes",
         items: [
             { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+            { href: "/analisis", label: "Análisis", icon: FlaskConical },
             { href: "/historial", label: "Historial", icon: History },
         ]
     },
@@ -79,6 +72,16 @@ const navSections = [
 
 const isRouteActive = (pathname, href) =>
     pathname === href || (href !== "/" && pathname.startsWith(href));
+
+// Acción principal de cada vista para la barra móvil: lo que se hace más en
+// esa pantalla, a un toque, sin buscar el botón dentro del contenido.
+const accionMovil = (pathname) => {
+    if (pathname === "/productos") return { label: "Crear producto", href: "/crear" };
+    if (pathname === "/clientes") return { label: "Nuevo cliente", href: "/clientes?nuevo=1" };
+    return null;
+};
+
+const esMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 // Fuera de Layout: si se define dentro, React lo trata como un tipo nuevo en
 // cada render, remonta la nav entera y el layoutId nunca llega a animar.
@@ -123,8 +126,23 @@ export function Layout({ children }) {
     const location = useLocation();
     const { settings, loading } = useTheme();
     const { user, logout } = useAuth();
+    const { resolved, setMode } = useAppearance();
 
     const isDesktop = useMediaQuery("(min-width: 768px)");
+    const [paletaOpen, setPaletaOpen] = useState(false);
+    const navItems = navSections.flatMap((s) => s.items);
+
+    // Ctrl/⌘+K desde cualquier sitio, incluso con foco en un input.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                setPaletaOpen((o) => !o);
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, []);
     const reduce = useReducedMotion();
 
     const [collapsed, setCollapsed] = usePersistedState("roncamotors_nav_collapsed", false);
@@ -189,17 +207,6 @@ export function Layout({ children }) {
         };
     }, [drawerOpen]);
 
-    // Atajo: [ pliega y despliega en escritorio.
-    useEffect(() => {
-        const onKey = (e) => {
-            if (e.key !== "[" || e.metaKey || e.ctrlKey || e.altKey) return;
-            if (e.target.closest("input, textarea, select, [contenteditable]")) return;
-            setCollapsed((c) => !c);
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [setCollapsed]);
-
     const onDragEnd = (_, info) => {
         const landing = info.offset.x + project(info.velocity.x);
         const shouldClose = landing < -DRAWER_W / 2;
@@ -232,9 +239,8 @@ export function Layout({ children }) {
 
     const mask = `linear-gradient(to bottom, ${edges.top ? "transparent 0, #000 16px" : "#000 0"}, ${edges.bottom ? "#000 calc(100% - 20px), transparent 100%" : "#000 100%"})`;
 
-    const activeLabel = navSections
-        .flatMap((s) => s.items)
-        .find((i) => isRouteActive(location.pathname, i.href))?.label ?? "";
+    const activeLabel = navItems.find((i) => isRouteActive(location.pathname, i.href))?.label ?? "";
+    const accion = accionMovil(location.pathname);
 
     return (
         <MotionConfig reducedMotion="user">
@@ -261,6 +267,32 @@ export function Layout({ children }) {
                     <span className="text-[15px] font-semibold text-white truncate">
                         {activeLabel}
                     </span>
+                    <div className="ml-auto flex items-center gap-1 shrink-0">
+                        <motion.button
+                            whileTap={{ scale: 0.92 }}
+                            transition={SPRING}
+                            onClick={() => setPaletaOpen(true)}
+                            aria-label="Buscar"
+                            className="h-11 w-11 grid place-items-center rounded-xl text-slate-200
+                                       active:bg-white/10 outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                        >
+                            <Search className="w-5 h-5" />
+                        </motion.button>
+                        {accion && (
+                            <Link
+                                to={accion.href}
+                                aria-label={accion.label}
+                                className={cn(
+                                    "h-9 pl-2.5 pr-3 inline-flex items-center gap-1 rounded-xl text-sm font-semibold",
+                                    "bg-primary text-on-accent shadow-lg shadow-primary/25 outline-none",
+                                    "focus-visible:ring-2 focus-visible:ring-primary/60", PRESS
+                                )}
+                            >
+                                <Plus className="w-4 h-4" />
+                                {accion.label.split(" ")[0]}
+                            </Link>
+                        )}
+                    </div>
                 </header>
 
                 {/* Scrim: sigue al dedo 1:1 durante el arrastre */}
@@ -301,7 +333,7 @@ export function Layout({ children }) {
                         whileTap={{ scale: 0.88 }}
                         transition={SPRING}
                         onClick={() => setCollapsed((c) => !c)}
-                        title={collapsed ? "Expandir menú  [" : "Plegar menú  ["}
+                        title={collapsed ? "Expandir menú" : "Plegar menú"}
                         aria-label={collapsed ? "Expandir menú" : "Plegar menú"}
                         className="hidden md:grid absolute -right-4 top-6 h-8 w-8 place-items-center rounded-full
                                    bg-slate-800 border border-white/10 text-slate-400 shadow-lg
@@ -335,6 +367,28 @@ export function Layout({ children }) {
                             )}
                         </motion.div>
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={() => setPaletaOpen(true)}
+                        title={`Buscar  ${esMac ? "⌘" : "Ctrl+"}K`}
+                        aria-label="Buscar en la app"
+                        className="mb-4 shrink-0 flex items-center h-10 px-[14px] rounded-xl overflow-hidden
+                                   bg-white/[0.05] border border-white/10 text-slate-400 hover:text-white
+                                   hover:bg-white/[0.08] transition-colors outline-none
+                                   focus-visible:ring-2 focus-visible:ring-primary/60"
+                    >
+                        <Search className="w-4 h-4 shrink-0" />
+                        <motion.span style={{ opacity: labelOpacity }} className="ml-3 text-sm whitespace-nowrap flex-1 text-left">
+                            Buscar…
+                        </motion.span>
+                        <motion.kbd
+                            style={{ opacity: labelOpacity }}
+                            className="text-[11px] text-slate-500 border border-white/10 rounded px-1.5 py-0.5 whitespace-nowrap"
+                        >
+                            {esMac ? "⌘" : "Ctrl"} K
+                        </motion.kbd>
+                    </button>
 
                     <nav
                         ref={navRef}
@@ -379,6 +433,27 @@ export function Layout({ children }) {
                         </motion.div>
 
                         <button
+                            type="button"
+                            onClick={() => setMode(resolved === "dark" ? "light" : "dark")}
+                            title={isDesktop && collapsed ? (resolved === "dark" ? "Modo claro" : "Modo oscuro") : undefined}
+                            aria-label={resolved === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+                            className="w-full flex items-center h-11 px-[14px] rounded-xl overflow-hidden
+                                       transition-transform duration-100 ease-out active:scale-[0.98]
+                                       text-slate-300 hover:bg-white/[0.06] outline-none
+                                       focus-visible:ring-2 focus-visible:ring-primary/60"
+                        >
+                            {resolved === "dark"
+                                ? <Sun className="w-5 h-5 shrink-0 text-slate-400" />
+                                : <Moon className="w-5 h-5 shrink-0 text-slate-400" />}
+                            <motion.span
+                                style={{ opacity: labelOpacity }}
+                                className="ml-3 text-sm font-medium whitespace-nowrap"
+                            >
+                                {resolved === "dark" ? "Modo claro" : "Modo oscuro"}
+                            </motion.span>
+                        </button>
+
+                        <button
                             onClick={logout}
                             title={isDesktop && collapsed ? "Cerrar sesión" : undefined}
                             className="w-full flex items-center h-11 px-[14px] rounded-xl overflow-hidden
@@ -410,6 +485,8 @@ export function Layout({ children }) {
                         {children}
                     </main>
                 </motion.div>
+
+                <CommandPalette open={paletaOpen} onClose={() => setPaletaOpen(false)} navItems={navItems} />
             </div>
         </MotionConfig>
     );

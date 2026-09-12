@@ -65,7 +65,7 @@
     --color-slate-800: #eaeff6;
     --color-slate-900: #ffffff;
     --color-slate-950: #eef2f9;
-    --color-glass: rgba(255, 255, 255, 0.72);
+    --color-glass: rgba(255, 255, 255, 0.52);
     /* Sobre claro el glass necesita sombra y una aurora más viva para que el
        backdrop-blur tenga algo que difuminar. */
     --aurora-a: rgba(96, 165, 250, 0.45);
@@ -158,6 +158,46 @@
 @keyframes vista-entra {
     from { opacity: 0; }
     to   { opacity: 1; }
+}
+
+/* Superficie "gota": relleno plano con un velo vertical muy leve (luz arriba),
+   canto uniforme en todo el contorno (borde + anillo interior + brillo
+   interno que da grosor de vidrio) y elevación pareja. Sin direccionalidad
+   fuerte: el mismo vidrio se ve igual en cualquier esquina. */
+.glass {
+    position: relative;
+    isolation: isolate;
+    border: 1px solid var(--glass-borde);
+    background-image: linear-gradient(180deg, var(--glass-luz) 0%, transparent 38%);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+        inset 0 1px 0 var(--glass-canto),
+        inset 0 -1px 0 var(--glass-canto-bajo),
+        inset 0 0 0 1px var(--glass-anillo),
+        inset 0 0 28px var(--glass-brillo),
+        var(--glass-elevacion);
+}
+:root {
+    --glass-luz: rgba(255, 255, 255, 0.07);
+    --glass-borde: rgba(255, 255, 255, 0.16);
+    --glass-canto: rgba(255, 255, 255, 0.30);
+    --glass-canto-bajo: rgba(0, 0, 0, 0.30);
+    --glass-anillo: rgba(255, 255, 255, 0.04);
+    --glass-brillo: rgba(255, 255, 255, 0.05);
+    --glass-elevacion: 0 10px 36px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+:root[data-theme="light"] {
+    --glass-luz: rgba(255, 255, 255, 0.75);
+    --glass-borde: rgba(255, 255, 255, 0.95);
+    --glass-canto: rgba(255, 255, 255, 1);
+    --glass-canto-bajo: rgba(30, 41, 59, 0.10);
+    --glass-anillo: rgba(30, 41, 59, 0.06);
+    --glass-brillo: rgba(255, 255, 255, 0.55);
+    --glass-elevacion: 0 0 0 1px rgba(30, 41, 59, 0.07), 0 12px 32px -8px rgba(30, 41, 59, 0.28), 0 2px 4px rgba(30, 41, 59, 0.08);
+}
+@media (prefers-reduced-transparency: reduce) {
+    .glass { backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
 /* --i lo asigna App.jsx (Vista) en orden de documento; sin él, entra sin espera. */
