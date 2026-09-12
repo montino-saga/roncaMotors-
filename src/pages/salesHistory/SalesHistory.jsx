@@ -5,7 +5,7 @@ import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
-import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, X, Trash2, AlertTriangle, ChevronDown, BarChart3, List, User, Pencil } from 'lucide-react'
+import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, X, Trash2, AlertTriangle, ChevronDown, BarChart3, List, User, Pencil, Percent } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { toast } from 'sonner'
 import { Button } from '../../components/ui/Button'
@@ -51,6 +51,9 @@ function SalesHistory() {
 
 
     const getLocalPrice = (prod) => Number(prod?.precioVentaLocal ?? prod?.precioProducto ?? 0)
+    // Descuentos por ítem guardados por el POS; ventas antiguas no los traen.
+    const descuentoItems = (sale) => (sale?.productos || []).reduce((acc, p) => acc + (Number(p.descuento) || 0) * (Number(p.cantidad) || 0), 0)
+    const tieneDescuento = (sale) => (sale?.descuentoTotal || 0) > 0 || descuentoItems(sale) > 0
 
     // Format date
     const formatDate = (timestamp) => {
@@ -294,17 +297,23 @@ function SalesHistory() {
 
             // Recalcular totales
             // Recalcular total venta sumando todos los items
-            const newTotalVenta = newProducts.reduce((acc, p) => acc + (p.cantidad * getLocalPrice(p)), 0)
+            const newSubtotal = newProducts.reduce((acc, p) => acc + (p.cantidad * getLocalPrice(p)), 0)
+            const newDescuentoTotal = Math.min(selectedSale.descuentoTotal || 0, newSubtotal)
+            const newTotalVenta = newSubtotal - newDescuentoTotal
             
             // Recalcular ganancia
             // Restamos la ganancia proporcional a la cantidad devuelta
             const profitPerUnit = (getLocalPrice(productToRemove) - (productToRemove.precioOriginal || 0))
             const profitToRemove = profitPerUnit * qty
+            // Si el descuento al total se recorta, esa parte vuelve a ser ganancia.
             const newTotalGanancia = (selectedSale.totalGanancia || 0) - profitToRemove
+                + ((selectedSale.descuentoTotal || 0) - newDescuentoTotal)
 
             const saleRef = doc(db, 'sales', selectedSale.id)
             batch.update(saleRef, {
                 productos: newProducts,
+                subtotal: newSubtotal,
+                descuentoTotal: newDescuentoTotal,
                 totalVenta: newTotalVenta,
                 totalGanancia: newTotalGanancia
             })
@@ -315,6 +324,8 @@ function SalesHistory() {
             const updatedSale = { 
                 ...selectedSale, 
                 productos: newProducts, 
+                subtotal: newSubtotal,
+                descuentoTotal: newDescuentoTotal,
                 totalVenta: newTotalVenta, 
                 totalGanancia: newTotalGanancia 
             }
@@ -575,7 +586,19 @@ function SalesHistory() {
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-3 font-bold text-emerald-400 text-right">
-                                                        {formatCLP(sale.totalVenta)}
+                                                        <span className="inline-flex items-center justify-end gap-2">
+                                                            {tieneDescuento(sale) && (
+                                                                <span
+                                                                    title={`Descuento −${formatCLP((sale.descuentoTotal || 0) + descuentoItems(sale))}`}
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium
+                                                                               bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                                                                >
+                                                                    <Percent className="w-3 h-3" />
+                                                                    −{formatCLP((sale.descuentoTotal || 0) + descuentoItems(sale))}
+                                                                </span>
+                                                            )}
+                                                            {formatCLP(sale.totalVenta)}
+                                                        </span>
                                                     </td>
                                                     <td className="px-4 py-3 text-right">
                                                         <div className="flex items-center justify-end gap-2">
@@ -672,12 +695,20 @@ function SalesHistory() {
                                     <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 group hover:border-white/10 transition-colors">
                                         <div>
                                             <p className="text-white font-medium">{prod.nombreProducto}</p>
-                                            <p className="text-xs text-slate-400">
+                                            <p className="text-xs text-slate-400 tabular-nums">
                                                 {prod.cantidad} x {formatCLP(getLocalPrice(prod))}
+                                                {prod.descuento > 0 && (
+                                                    <>
+                                                        <span className="line-through ml-1.5 text-slate-500">{formatCLP(prod.precioLista)}</span>
+                                                        <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                                            −{Math.round((prod.descuento / prod.precioLista) * 100)}%
+                                                        </span>
+                                                    </>
+                                                )}
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-4">
-                                            <p className="text-white font-medium">
+                                            <p className={cn("font-medium tabular-nums", prod.descuento > 0 ? "text-amber-300" : "text-white")}>
                                                 {formatCLP(prod.cantidad * getLocalPrice(prod))}
                                             </p>
                                             <button
@@ -693,9 +724,35 @@ function SalesHistory() {
                             </div>
                         </div>
 
-                        <div className="pt-4 border-t border-white/10 flex justify-between items-center">
-                            <p className="text-slate-400">Total Pagado</p>
-                            <p className="text-2xl font-bold text-emerald-400">{formatCLP(selectedSale.totalVenta)}</p>
+                        <div className="pt-4 border-t border-white/10 space-y-1.5 tabular-nums">
+                            {tieneDescuento(selectedSale) && (
+                                <>
+                                    {descuentoItems(selectedSale) > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <p className="text-slate-400">Descuentos por producto</p>
+                                            <p className="text-amber-300">−{formatCLP(descuentoItems(selectedSale))}</p>
+                                        </div>
+                                    )}
+                                    {(selectedSale.descuentoTotal || 0) > 0 && (
+                                        <>
+                                            <div className="flex justify-between text-sm">
+                                                <p className="text-slate-400">Subtotal</p>
+                                                <p className="text-slate-300">{formatCLP(selectedSale.subtotal ?? selectedSale.totalVenta + selectedSale.descuentoTotal)}</p>
+                                            </div>
+                                            <div className="flex justify-between text-sm">
+                                                <p className="text-slate-400 inline-flex items-center gap-1.5">
+                                                    <Percent className="w-3.5 h-3.5 text-amber-300" /> Descuento al total
+                                                </p>
+                                                <p className="text-amber-300">−{formatCLP(selectedSale.descuentoTotal)}</p>
+                                            </div>
+                                        </>
+                                    )}
+                                </>
+                            )}
+                            <div className="flex justify-between items-center pt-1">
+                                <p className="text-slate-400">Total Pagado</p>
+                                <p className="text-2xl font-bold text-emerald-400">{formatCLP(selectedSale.totalVenta)}</p>
+                            </div>
                         </div>
                     </div>
                 )}
