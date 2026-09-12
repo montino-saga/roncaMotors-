@@ -8,7 +8,7 @@ import { Modal } from '../../components/ui/Modal'
 import { formatCLP, cn } from '../../lib/utils'
 import { toast } from 'sonner'
 import { Lock, Unlock, DollarSign, TrendingUp, TrendingDown, History, AlertTriangle, Trash2 } from 'lucide-react'
-import { Skeleton } from '../../components/ui/Skeleton'
+import { Skeleton, SkeletonCard, SkeletonKpis, SkeletonHeader } from '../../components/ui/Skeleton'
 import { useAuth } from '../../context/AuthContext'
 
 function CashClose() {
@@ -228,7 +228,18 @@ function CashClose() {
     const expectedBalance = session ? (session.openingBalance + cashSales + totalIncomes - totalExpenses) : 0
     const difference = closingCount ? (Number(closingCount) - expectedBalance) : 0
 
-    if (loading) return <Skeleton className="h-96 w-full" />
+    if (loading) {
+        return (
+            <div className="space-y-8" aria-busy="true" aria-label="Cargando caja">
+                <SkeletonHeader actions={2} />
+                <SkeletonKpis />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <SkeletonCard lines={5} className="p-6" />
+                    <SkeletonCard lines={4} className="p-6" />
+                </div>
+            </div>
+        )
+    }
 
     if (!session) {
         return (

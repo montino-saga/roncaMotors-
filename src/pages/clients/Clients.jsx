@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { collection, addDoc, getDocs, query, orderBy, Timestamp } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
+import { SkeletonCard } from '../../components/ui/Skeleton'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
@@ -153,7 +154,7 @@ function Clients() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {loading ? (
-                    <p className="text-slate-400">Cargando clientes...</p>
+                    Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} lines={2} className="p-6" />)
                 ) : filteredClients.length === 0 ? (
                     <div className="col-span-full text-center py-12 bg-white/5 rounded-xl border border-white/10 border-dashed">
                         <User className="w-12 h-12 text-slate-500 mx-auto mb-3" />

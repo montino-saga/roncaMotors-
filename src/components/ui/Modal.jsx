@@ -82,7 +82,9 @@ export function Modal({
                         )}
                     />
 
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+                    {/* Móvil: hoja inferior pegada al borde, más cómoda con el
+                        pulgar y el teclado; desde sm, diálogo centrado. */}
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 pointer-events-none">
                         <motion.div
                             ref={panelRef}
                             role="dialog"
@@ -96,15 +98,16 @@ export function Modal({
                             transition={SPRING_SNAPPY}
                             style={{ transformOrigin: origin }}
                             className={cn(
-                                "w-full max-w-lg rounded-2xl pointer-events-auto overflow-hidden",
+                                "w-full max-w-lg rounded-t-2xl sm:rounded-2xl pointer-events-auto overflow-hidden",
+                                "max-h-[92dvh] flex flex-col",
                                 "bg-slate-900/80 border border-white/10 shadow-2xl shadow-black/60",
                                 "reduce-transparency:bg-slate-900 reduce-transparency:backdrop-blur-none",
                                 "more-contrast:border-white/40",
                                 className
                             )}
                         >
-                            <div className="flex items-center justify-between p-6 border-b border-white/10">
-                                <h3 className="text-xl font-semibold text-white tracking-[-0.01em]">{title}</h3>
+                            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10 shrink-0">
+                                <h3 className="text-lg sm:text-xl font-semibold text-white tracking-[-0.01em]">{title}</h3>
                                 <button
                                     onClick={onClose}
                                     disabled={!dismissible}
@@ -120,7 +123,7 @@ export function Modal({
                                 </button>
                             </div>
 
-                            <div className="p-6">{children}</div>
+                            <div className="p-4 sm:p-6 overflow-y-auto min-h-0 custom-scrollbar">{children}</div>
                         </motion.div>
                     </div>
                 </>

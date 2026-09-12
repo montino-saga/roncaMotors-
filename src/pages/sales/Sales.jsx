@@ -811,9 +811,12 @@ function Sales() {
             {/* Caja: primera en el DOM para que en móvil quede arriba, a la
                 derecha en pantallas anchas. Ancho fijo — su contenido no crece,
                 el sobrante es para la lista. */}
-            <div className="order-1 sm:order-2 w-full sm:w-[300px] lg:w-[340px] 2xl:w-[380px]
-                            shrink-0 flex flex-col min-h-0 max-h-[62%] sm:max-h-none">
-                <Card className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col p-3 lg:p-5">
+            {/* Móvil (< sm): la Card se disuelve (display: contents) y sus dos
+                bloques se reparten: buscador arriba, cobro abajo, lista en medio
+                con toda la altura sobrante. */}
+            <div className="max-sm:contents sm:order-2 w-full sm:w-[300px] lg:w-[340px] 2xl:w-[380px]
+                            shrink-0 flex flex-col min-h-0">
+                <Card className="max-sm:contents flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col p-3 lg:p-5">
                     <div className="hidden sm:flex items-center justify-between mb-4">
                         <h2 className="text-lg lg:text-2xl font-bold text-white flex items-center gap-2 tracking-[-0.01em]">
                             <ShoppingCart className="w-5 h-5 lg:w-6 lg:h-6 text-primary shrink-0" />
@@ -821,8 +824,8 @@ function Sales() {
                         </h2>
                     </div>
 
-                    <form onSubmit={addToCart} className="mb-3 lg:mb-6">
-                        <div className="relative">
+                    <form onSubmit={addToCart} className="max-sm:order-1 flex gap-2 sm:block sm:mb-3 lg:mb-6 shrink-0">
+                        <div className="relative flex-1 min-w-0">
                             {/* Sin `disabled`: el lector no espera a Firestore. */}
                             <Input
                                 ref={inputRef}
@@ -882,55 +885,66 @@ function Sales() {
                         </div>
                         <Button
                             type="submit"
-                            className="w-full mt-3 h-12 text-base lg:text-lg"
+                            className="w-12 px-0 sm:w-full sm:px-4 sm:mt-3 h-12 shrink-0 text-base lg:text-lg grid place-items-center"
                             disabled={!productId}
+                            aria-label="Agregar producto"
                         >
-                            Agregar Producto
+                            <Plus className="w-6 h-6 sm:hidden" />
+                            <span className="hidden sm:inline">Agregar Producto</span>
                         </Button>
                     </form>
 
-                    <div className="mt-auto space-y-2.5 lg:space-y-4">
+                    <div className="max-sm:order-3 mt-auto space-y-2 lg:space-y-4 shrink-0
+                                    max-sm:bg-glass max-sm:backdrop-blur-lg max-sm:border max-sm:border-white/20
+                                    max-sm:rounded-2xl max-sm:p-2.5">
                         {/* Oscuro, no otro velo claro sobre el cristal de la Card.
                             En pantallas bajas la cifra va en línea para no comerse
-                            la altura de la lista. */}
-                        <div className="bg-slate-950/50 rounded-xl px-3 py-2.5 lg:p-4 border border-white/10
-                                        reduce-transparency:bg-slate-950
-                                        flex items-baseline justify-between gap-2 lg:block">
-                            <p className="text-slate-300 text-xs lg:text-sm lg:mb-1 tracking-[0.01em] shrink-0">Total a Pagar</p>
-                            <div className="text-right lg:text-left min-w-0">
-                                {descuentoTotal > 0 && (
-                                    <p className="text-[11px] text-slate-500 tabular-nums line-through truncate">
-                                        {formatCLP(calculateSubtotal())}
+                            la altura de la lista; en móvil el descuento va al lado
+                            como icono. */}
+                        <div className="flex items-stretch gap-2 sm:flex-col sm:gap-2.5 lg:gap-4">
+                            <div className="flex-1 min-w-0 bg-slate-950/50 rounded-xl px-3 py-2.5 lg:p-4 border border-white/10
+                                            reduce-transparency:bg-slate-950
+                                            flex items-baseline justify-between gap-2 lg:block">
+                                <p className="text-slate-300 text-xs lg:text-sm lg:mb-1 tracking-[0.01em] shrink-0">Total a Pagar</p>
+                                <div className="text-right lg:text-left min-w-0">
+                                    {descuentoTotal > 0 && (
+                                        <p className="text-[11px] text-slate-500 tabular-nums line-through truncate">
+                                            {formatCLP(calculateSubtotal())}
+                                        </p>
+                                    )}
+                                    <p className={cn("text-2xl lg:text-4xl font-bold tracking-[-0.02em] tabular-nums truncate",
+                                        descuentoTotal > 0 ? "text-amber-300" : "text-emerald-400")}>
+                                        {formatCLP(calculateTotal())}
                                     </p>
-                                )}
-                                <p className={cn("text-2xl lg:text-4xl font-bold tracking-[-0.02em] tabular-nums truncate",
-                                    descuentoTotal > 0 ? "text-amber-300" : "text-emerald-400")}>
-                                    {formatCLP(calculateTotal())}
-                                </p>
+                                </div>
                             </div>
+
+                            {/* Móvil: solo el icono, al lado del total. */}
+                            <button
+                                type="button"
+                                onClick={() => openDiscount('total')}
+                                disabled={!cart.length}
+                                aria-pressed={descuentoTotal > 0}
+                                className={cn(
+                                    "w-14 sm:w-full shrink-0 sm:min-h-[52px] lg:min-h-[60px] sm:px-4",
+                                    "flex items-center justify-center gap-2.5 rounded-xl border-2",
+                                    "text-base lg:text-lg font-bold transition-colors", PRESS,
+                                    "disabled:opacity-30 disabled:pointer-events-none",
+                                    descuentoTotal > 0
+                                        ? "bg-amber-500/20 border-amber-500 text-amber-200 shadow-lg shadow-amber-500/10"
+                                        : "bg-amber-500/10 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 hover:border-amber-500"
+                                )}
+                            >
+                                <Percent className="w-6 h-6 sm:w-5 sm:h-5 lg:w-6 lg:h-6 shrink-0" />
+                                <span className="sr-only sm:not-sr-only">
+                                    {descuentoTotal > 0
+                                        ? `Descuento aplicado: −${formatCLP(descuentoTotal)}`
+                                        : 'Aplicar descuento al total'}
+                                </span>
+                            </button>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={() => openDiscount('total')}
-                            disabled={!cart.length}
-                            aria-pressed={descuentoTotal > 0}
-                            className={cn(
-                                "w-full min-h-[52px] lg:min-h-[60px] px-4 flex items-center justify-center gap-2.5 rounded-xl border-2",
-                                "text-base lg:text-lg font-bold transition-colors", PRESS,
-                                "disabled:opacity-30 disabled:pointer-events-none",
-                                descuentoTotal > 0
-                                    ? "bg-amber-500/20 border-amber-500 text-amber-200 shadow-lg shadow-amber-500/10"
-                                    : "bg-amber-500/10 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 hover:border-amber-500"
-                            )}
-                        >
-                            <Percent className="w-5 h-5 lg:w-6 lg:h-6 shrink-0" />
-                            {descuentoTotal > 0
-                                ? `Descuento aplicado: −${formatCLP(descuentoTotal)}`
-                                : 'Aplicar descuento al total'}
-                        </button>
-
-                        <div className="grid grid-cols-2 gap-2 lg:gap-3">
+                        <div className="grid grid-cols-3 sm:grid-cols-2 gap-2 lg:gap-3">
                             {[
                                 { id: 'efectivo', label: 'Efectivo', Icon: Banknote },
                                 { id: 'tarjeta', label: 'Tarjeta', Icon: CreditCard }
@@ -940,14 +954,15 @@ function Sales() {
                                     onClick={() => setPaymentType(id)}
                                     aria-pressed={paymentType === id}
                                     className={cn(
-                                        "flex flex-col items-center justify-center min-h-[56px] lg:min-h-[72px] p-2 lg:p-4",
+                                        "flex flex-row sm:flex-col items-center justify-center gap-1.5 sm:gap-0",
+                                        "min-h-[44px] sm:min-h-[56px] lg:min-h-[72px] p-2 lg:p-4",
                                         "rounded-xl border transition-colors", PRESS,
                                         paymentType === id
                                             ? "bg-primary border-primary text-white shadow-lg shadow-primary/20"
                                             : "bg-slate-950/50 border-white/10 text-slate-300 hover:bg-slate-950/70"
                                     )}
                                 >
-                                    <Icon className="w-5 h-5 lg:w-6 lg:h-6 mb-1 lg:mb-2" />
+                                    <Icon className="w-5 h-5 lg:w-6 lg:h-6 sm:mb-1 lg:mb-2" />
                                     <span className="text-xs lg:text-sm font-medium">{label}</span>
                                 </button>
                             ))}
@@ -957,22 +972,38 @@ function Sales() {
                                 onClick={() => setPaymentType('fiado')}
                                 aria-pressed={paymentType === 'fiado'}
                                 className={cn(
-                                    "col-span-2 flex flex-row items-center justify-center gap-2 lg:gap-3",
-                                    "min-h-[48px] p-2 lg:p-3 rounded-xl border transition-colors", PRESS,
+                                    "sm:col-span-2 flex flex-row items-center justify-center gap-1.5 sm:gap-2 lg:gap-3",
+                                    "min-h-[44px] sm:min-h-[48px] p-2 lg:p-3 rounded-xl border transition-colors", PRESS,
                                     paymentType === 'fiado'
                                         ? "bg-amber-500/20 border-amber-500 text-amber-200 shadow-lg shadow-amber-500/10"
                                         : "bg-slate-950/50 border-white/10 text-slate-300 hover:bg-slate-950/70"
                                 )}
                             >
-                                <User className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" />
-                                <span className="text-xs lg:text-sm font-medium">Cargar a Cuenta (Fiado)</span>
+                                <User className="w-5 h-5 sm:w-4 sm:h-4 lg:w-5 lg:h-5 shrink-0" />
+                                <span className="text-xs lg:text-sm font-medium">
+                                    <span className="sm:hidden">Fiado</span>
+                                    <span className="hidden sm:inline">Cargar a Cuenta (Fiado)</span>
+                                </span>
                             </button>
                         </div>
 
+                        <div className="flex gap-2">
+                        {/* Móvil: cotizar es el uso principal desde el teléfono,
+                            va junto al botón de cobro. En sm+ vive en la cabecera
+                            de la lista. */}
+                        <Button
+                            variant="secondary"
+                            onClick={handleCotizar}
+                            disabled={cart.length === 0 || cotizando}
+                            className="sm:hidden flex-1 h-12 inline-flex items-center justify-center gap-1.5 text-sm"
+                        >
+                            <FileText className="w-4 h-4 shrink-0" />
+                            {cotizando ? 'Generando…' : 'Cotización'}
+                        </Button>
                         <Button
                             onClick={handleCheckout}
                             className={cn(
-                                "w-full h-12 lg:h-14 text-base lg:text-xl font-bold shadow-lg transition-colors tracking-[-0.01em]",
+                                "flex-[1.6] sm:flex-none sm:w-full h-12 lg:h-14 text-base lg:text-xl font-bold shadow-lg transition-colors tracking-[-0.01em]",
                                 paymentType === 'fiado'
                                     ? "bg-amber-600 hover:bg-amber-500 shadow-amber-500/20"
                                     : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20"
@@ -981,13 +1012,14 @@ function Sales() {
                         >
                             {processing ? 'Procesando...' : paymentType === 'fiado' ? 'Seleccionar Cliente' : 'Finalizar Venta'}
                         </Button>
+                        </div>
                     </div>
                 </Card>
             </div>
 
             {/* Lista: a la izquierda en pantallas anchas, se queda con todo el
                 espacio que la caja no necesita. */}
-            <div className="order-2 sm:order-1 flex-1 min-w-0 min-h-0">
+            <div className="max-sm:order-2 sm:order-1 flex-1 min-w-0 min-h-0">
                 <Card className="h-full flex flex-col p-0 overflow-hidden">
                     <div className="p-3 md:p-4 flex justify-between items-center gap-2 shrink-0">
                         <h3 className="font-medium text-slate-200 text-sm md:text-base truncate">
@@ -998,7 +1030,7 @@ function Sales() {
                                 variant="secondary"
                                 onClick={handleCotizar}
                                 disabled={cart.length === 0 || cotizando}
-                                className="text-xs h-8 px-3 inline-flex items-center gap-1.5"
+                                className="hidden sm:inline-flex text-xs h-8 px-3 items-center gap-1.5"
                                 title="Genera un PDF con el logo y los productos del carrito"
                             >
                                 <FileText className="w-3.5 h-3.5 shrink-0" />
@@ -1074,10 +1106,22 @@ function Sales() {
                                             <div className="text-[11px] text-slate-500 mt-0.5 font-mono tracking-[0.02em] truncate">{item.idProducto}</div>
                                         </div>
 
+                                        {/* Estrecho: el subtotal sube junto al nombre, donde se
+                                            busca primero. En ancho se coloca entre el ± y el %. */}
+                                        <div className="text-right shrink-0 @md:order-3 @md:min-w-[104px]">
+                                            <p className="text-[10px] uppercase tracking-wider text-slate-500">Subtotal</p>
+                                            <p className={cn("font-bold text-base @md:text-xl tabular-nums tracking-[-0.01em]",
+                                                item.precioDescuento != null ? "text-amber-300" : "text-emerald-400")}>
+                                                {formatCLP(getLocalPrice(item) * item.cantidad)}
+                                            </p>
+                                        </div>
+
                                         {/* Estrecho: los controles bajan a su propia línea en lugar
-                                            de comprimir el nombre hasta lo ilegible. */}
-                                        <div className="flex items-center gap-2 @md:gap-3 w-full @md:w-auto justify-end shrink-0">
-                                            <div className="text-right min-w-[84px] @md:min-w-[104px]">
+                                            de comprimir el nombre hasta lo ilegible. En ancho el
+                                            contenedor se disuelve (contents) y cada control ordena
+                                            solo. */}
+                                        <div className="flex items-center gap-2 w-full justify-end shrink-0 @md:contents">
+                                            <div className="text-left @md:text-right mr-auto @md:mr-0 min-w-0 @md:min-w-[104px] @md:order-1">
                                                 <p className="text-[10px] uppercase tracking-wider text-slate-500">Precio c/u</p>
                                                 {item.precioDescuento != null && (
                                                     <p className="text-[11px] text-slate-500 tabular-nums line-through leading-none">
@@ -1090,12 +1134,12 @@ function Sales() {
                                                 </p>
                                             </div>
 
-                                            <div className="flex items-center bg-slate-950 rounded-lg border border-white/10 h-10">
+                                            <div className="flex items-center bg-slate-950 rounded-lg border border-white/10 h-10 shrink-0 @md:order-2">
                                                 <button
                                                     onClick={() => updateQuantity(index, -1)}
                                                     disabled={item.cantidad <= 1}
                                                     aria-label="Quitar una unidad"
-                                                    className="w-10 h-full grid place-items-center rounded-l-lg text-slate-300
+                                                    className="w-9 @md:w-10 h-full grid place-items-center rounded-l-lg text-slate-300
                                                                hover:text-white hover:bg-white/10 transition-colors
                                                                disabled:opacity-25 disabled:pointer-events-none"
                                                 >
@@ -1105,19 +1149,11 @@ function Sales() {
                                                 <button
                                                     onClick={() => updateQuantity(index, 1)}
                                                     aria-label="Añadir una unidad"
-                                                    className="w-10 h-full grid place-items-center rounded-r-lg text-slate-300
+                                                    className="w-9 @md:w-10 h-full grid place-items-center rounded-r-lg text-slate-300
                                                                hover:text-white hover:bg-white/10 transition-colors"
                                                 >
                                                     <Plus className="w-4 h-4" />
                                                 </button>
-                                            </div>
-
-                                            <div className="text-right min-w-[84px] @md:min-w-[104px]">
-                                                <p className="text-[10px] uppercase tracking-wider text-slate-500">Subtotal</p>
-                                                <p className={cn("font-bold text-base @md:text-xl tabular-nums tracking-[-0.01em]",
-                                                    item.precioDescuento != null ? "text-amber-300" : "text-emerald-400")}>
-                                                    {formatCLP(getLocalPrice(item) * item.cantidad)}
-                                                </p>
                                             </div>
 
                                             <button
@@ -1125,7 +1161,7 @@ function Sales() {
                                                 aria-label={`Descuento para ${item.nombreProducto}`}
                                                 aria-pressed={item.precioDescuento != null}
                                                 className={cn(
-                                                    "h-10 w-12 @md:w-14 grid place-items-center rounded-lg border-2 transition-colors", PRESS,
+                                                    "h-10 w-10 @md:w-14 shrink-0 grid place-items-center rounded-lg border-2 transition-colors @md:order-4", PRESS,
                                                     item.precioDescuento != null
                                                         ? "text-amber-200 bg-amber-500/25 border-amber-500"
                                                         : "text-amber-300 bg-amber-500/10 border-amber-500/40 hover:bg-amber-500/20 hover:border-amber-500"
@@ -1139,7 +1175,7 @@ function Sales() {
                                                 onClick={() => removeFromCart(index)}
                                                 aria-label={`Quitar ${item.nombreProducto}`}
                                                 className={cn(
-                                                    "ml-1 h-10 w-10 grid place-items-center rounded-lg text-slate-400",
+                                                    "@md:ml-1 @md:order-5 h-10 w-9 @md:w-10 shrink-0 grid place-items-center rounded-lg text-slate-400",
                                                     "hover:text-red-400 hover:bg-red-500/10 transition-colors", PRESS
                                                 )}
                                             >

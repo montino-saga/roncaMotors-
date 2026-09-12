@@ -4,6 +4,7 @@ import { collection, doc, getDoc, getDocs, query, orderBy, Timestamp, writeBatch
 import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
+import { SkeletonCard, SkeletonKpis, SkeletonRows } from '../../components/ui/Skeleton'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
@@ -396,7 +397,15 @@ function ClientDetails() {
     }, [activeTab])
 
     if (loading) {
-        return <div className="p-8 text-center text-slate-400">Cargando perfil...</div>
+        return (
+            <div className="space-y-6" aria-busy="true" aria-label="Cargando perfil">
+                <SkeletonCard lines={1} className="p-5" />
+                <SkeletonKpis count={3} className="lg:grid-cols-3" />
+                <SkeletonCard lines={0} className="p-0">
+                    <SkeletonRows rows={5} className="p-4" />
+                </SkeletonCard>
+            </div>
+        )
     }
 
     return (
@@ -536,7 +545,7 @@ function ClientDetails() {
                             className={cn(
                                 "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
                                 activeTab === 'purchases'
-                                    ? "bg-red-500 text-white"
+                                    ? "bg-red-500 text-on-accent"
                                     : "text-slate-400 hover:text-white hover:bg-white/5"
                             )}
                         >
@@ -548,7 +557,7 @@ function ClientDetails() {
                             className={cn(
                                 "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
                                 activeTab === 'payments'
-                                    ? "bg-emerald-500 text-white"
+                                    ? "bg-emerald-500 text-on-accent"
                                     : "text-slate-400 hover:text-white hover:bg-white/5"
                             )}
                         >
@@ -560,7 +569,7 @@ function ClientDetails() {
 
                 <div className="flex-1 overflow-auto">
                     {loadingMovements ? (
-                        <div className="p-12 text-center text-slate-500">Cargando movimientos...</div>
+                        <SkeletonRows rows={5} className="p-4" />
                     ) : displayData.length === 0 ? (
                         <div className="p-12 text-center text-slate-500">Sin movimientos registrados.</div>
                     ) : (
@@ -792,7 +801,7 @@ function ClientDetails() {
                             Cancelar
                         </Button>
                         <Button 
-                            className="bg-red-500 hover:bg-red-600 text-white border-none" 
+                            className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
                             onClick={handleDeleteClient} 
                             disabled={isDeleting}
                         >
@@ -827,7 +836,7 @@ function ClientDetails() {
                             Cancelar
                         </Button>
                         <Button 
-                            className="bg-red-500 hover:bg-red-600 text-white border-none" 
+                            className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
                             onClick={executeDeleteMovement} 
                             disabled={isDeleting}
                         >
@@ -892,7 +901,7 @@ function ClientDetails() {
                                 Cancelar
                             </Button>
                             <Button 
-                                className="bg-red-500 hover:bg-red-600 text-white border-none" 
+                                className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
                                 onClick={executeReturnProduct} 
                                 disabled={isDeleting}
                             >

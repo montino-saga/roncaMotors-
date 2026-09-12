@@ -12,13 +12,16 @@ import {
     User, Wallet, AlertCircle, Clock, Package, ArrowUpRight, ArrowDownRight
 } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
-import { Skeleton } from '../../components/ui/Skeleton'
+import { Skeleton, SkeletonCard, SkeletonKpis, SkeletonHeader } from '../../components/ui/Skeleton'
 import { useTheme } from '../../context/ThemeContext'
+import { useAppearance } from '../../context/AppearanceContext'
+import { chartTheme } from '../../lib/chartTheme'
 
 function Dashboard() {
     const [sales, setSales] = useState([])
     const [loading, setLoading] = useState(true)
     const { settings } = useTheme()
+    const ct = chartTheme(useAppearance().resolved)
     const { productos } = useCatalogo()
     // Bajo stock (< 5) sale del catálogo compartido: sin lecturas extra por rango.
     const lowStockCount = productos.filter(p => (p.cantidadProducto || 0) < 5).length
@@ -202,7 +205,23 @@ function Dashboard() {
     }
 
     if (loading) {
-        return <div className="p-8 text-center text-slate-400">Cargando Dashboard...</div>
+        return (
+            <div className="space-y-6 pb-8" aria-busy="true" aria-label="Cargando dashboard">
+                <SkeletonHeader actions={1} />
+                <SkeletonKpis />
+                <SkeletonKpis count={3} className="lg:grid-cols-3" />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 space-y-6">
+                        <SkeletonCard lines={0} className="p-6 min-h-[300px]" />
+                        <SkeletonCard lines={0} className="p-6 min-h-[250px]" />
+                    </div>
+                    <div className="space-y-6">
+                        <SkeletonCard lines={4} className="p-6" />
+                        <SkeletonCard lines={6} className="p-6" />
+                    </div>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -371,11 +390,11 @@ function Dashboard() {
                                             <stop offset="95%" stopColor={settings.primaryColor} stopOpacity={0}/>
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                    <XAxis dataKey="date" stroke="#64748b" tick={{ fill: '#64748b', fontSize: 12 }} />
-                                    <YAxis stroke="#64748b" tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(value) => `$${value / 1000}k`} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+                                    <XAxis dataKey="date" stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 12 }} />
+                                    <YAxis stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 12 }} tickFormatter={(value) => `$${value / 1000}k`} />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '8px' }}
+                                        contentStyle={ct.tooltip}
                                         formatter={(value) => [formatCLP(value), 'Ventas']}
                                     />
                                     <Area type="monotone" dataKey="ventas" stroke={settings.primaryColor} fillOpacity={1} fill="url(#colorVentas)" strokeWidth={3} />
@@ -395,11 +414,11 @@ function Dashboard() {
                         <div className="w-full h-[200px]">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={chartsData.hourlySales}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                    <XAxis dataKey="hour" stroke="#64748b" tick={{ fill: '#64748b', fontSize: 12 }} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+                                    <XAxis dataKey="hour" stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 12 }} />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '8px' }}
-                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                        contentStyle={ct.tooltip}
+                                        cursor={{ fill: ct.cursor }}
                                     />
                                     <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Ventas" />
                                 </BarChart>

@@ -20,12 +20,165 @@
     }
 }
 
+/* `light:` para los pocos sitios donde invertir la paleta no basta. */
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
 @theme {
     --color-primary: var(--primary-color, #3b82f6);
+    /* Texto sobre primary/rojo/verde: blanco en ambos temas. */
+    --color-on-accent: #ffffff;
+    /* Superficie "glass": en oscuro un velo blanco, en claro un velo blanco
+       más denso (white pasa a ser tinta en claro, así que no sirve white/10). */
+    --color-glass: rgba(255, 255, 255, 0.10);
 }
 
 :root {
     --primary-color: #3b82f6;
+    color-scheme: dark;
+    --aurora-a: rgba(37, 99, 235, 0.20);
+    --aurora-b: rgba(147, 51, 234, 0.18);
+    --glass-shadow: none;
+}
+
+/* Degradados pintados, no desenfocados: un blur-[120px] bajo el backdrop-blur
+   del aside obliga a re-samplear el desenfoque en cada frame. */
+.aurora {
+    background-image:
+        radial-gradient(58% 46% at 2% -4%, var(--aurora-a), transparent 68%),
+        radial-gradient(54% 44% at 98% 104%, var(--aurora-b), transparent 68%);
+}
+
+/* Modo claro: la app se escribió en oscuro con slate/white, así que en vez de
+   re-tocar cada clase se invierte la escala. `white` pasa a ser la tinta y
+   slate-950 el fondo; las transparencias (white/10, etc.) siguen funcionando
+   porque Tailwind v4 las deriva de estas mismas variables. */
+:root[data-theme="light"] {
+    color-scheme: light;
+    /* Tinta y escala de grises: fríos, con azul, para casar con la aurora. */
+    --color-white: #0f172a;
+    --color-slate-200: #1e293b;
+    --color-slate-300: #334155;
+    --color-slate-400: #55657c;
+    --color-slate-500: #6f7f96;
+    --color-slate-600: #9aa8bd;
+    --color-slate-700: #dde4ee;
+    --color-slate-800: #eaeff6;
+    --color-slate-900: #ffffff;
+    --color-slate-950: #eef2f9;
+    --color-glass: rgba(255, 255, 255, 0.72);
+    /* Sobre claro el glass necesita sombra y una aurora más viva para que el
+       backdrop-blur tenga algo que difuminar. */
+    --aurora-a: rgba(96, 165, 250, 0.45);
+    --aurora-b: rgba(192, 132, 252, 0.38);
+    --glass-shadow: 0 10px 36px -14px rgba(30, 41, 59, 0.22), 0 1px 2px rgba(30, 41, 59, 0.06);
+    /* Acentos: los tonos 200–400 pensados para fondo oscuro se lavan sobre
+       blanco; se bajan dos pasos. */
+    --color-amber-200: var(--color-amber-800);
+    --color-amber-300: var(--color-amber-700);
+    --color-amber-400: var(--color-amber-600);
+    --color-blue-400: var(--color-blue-600);
+    --color-cyan-400: var(--color-cyan-600);
+    --color-emerald-300: var(--color-emerald-700);
+    --color-emerald-400: var(--color-emerald-600);
+    --color-orange-400: var(--color-orange-600);
+    --color-purple-300: var(--color-purple-700);
+    --color-purple-400: var(--color-purple-600);
+    --color-red-300: var(--color-red-700);
+    --color-red-400: var(--color-red-600);
+    --color-sky-300: var(--color-sky-700);
+    --color-sky-400: var(--color-sky-600);
+    --color-yellow-400: var(--color-yellow-600);
+}
+
+/* Toda superficie desenfocada recibe la sombra del tema (en oscuro, ninguna). */
+:root[data-theme="light"] [class*="backdrop-blur"] {
+    box-shadow: var(--glass-shadow);
+}
+
+/* `bg-white/5` es la superficie base de paneles, inputs y cabeceras de tabla.
+   Invertida daría tinta al 5% (gris sucio); en claro es un velo blanco. Las
+   variantes hover:/active: son clases distintas y conservan la tinta. */
+:root[data-theme="light"] .bg-white\/5 {
+    background-color: rgba(255, 255, 255, 0.55);
+}
+
+/* Cambio de tema (AppearanceContext): el tema nuevo entra como una ola desde
+   la esquina superior izquierda con borde difuso (máscara radial, no clip-path)
+   y sale de un desenfoque; el viejo se desenfoca y se apaga debajo. */
+@property --ola {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 0%;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+    animation: tema-viejo 1400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+::view-transition-new(root) {
+    --ola: 0%;
+    mask-image: radial-gradient(circle at 0% 0%, #000 calc(var(--ola) - 45%), transparent var(--ola));
+    -webkit-mask-image: radial-gradient(circle at 0% 0%, #000 calc(var(--ola) - 45%), transparent var(--ola));
+    animation: tema-ola 1400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes tema-ola {
+    from { --ola: 0%;   filter: blur(28px); opacity: 0.6; }
+    40%  { filter: blur(12px); opacity: 1; }
+    to   { --ola: 200%; filter: blur(0); opacity: 1; }
+}
+
+@keyframes tema-viejo {
+    from { filter: blur(0); }
+    to   { filter: blur(14px); opacity: 0.85; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+        animation: none !important;
+    }
+}
+
+/* Entrada de cada vista: el fondo funde y las Cards llegan de derecha a
+   izquierda, escalonadas, con un destello de desenfoque. Animación CSS y no
+   framer: al terminar no queda filter/transform residual, que convertiría el
+   wrapper en containing block de los modales fixed. */
+.vista-entra {
+    animation: vista-entra 220ms ease-out both;
+}
+
+@keyframes vista-entra {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* --i lo asigna App.jsx (Vista) en orden de documento; sin él, entra sin espera. */
+.card-entra {
+    animation: card-entra 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(min(var(--i, 0), 5) * 40ms);
+}
+
+/* Vista ya asentada (App.jsx): lo que se monte después entra en seco. */
+.vista-entra[data-asentada] .card-entra {
+    animation: none;
+}
+
+@keyframes card-entra {
+    0%   { opacity: 0; transform: translateX(28px); filter: blur(8px) brightness(1); }
+    55%  { opacity: 1; transform: translateX(-2px); filter: blur(0) brightness(1.25); }
+    100% { opacity: 1; transform: none; filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vista-entra, .card-entra { animation-duration: 1ms; animation-delay: 0ms; }
 }
 
 /* Altura exacta del área de contenido: el <main> del Layout aporta py-4 (2rem)
@@ -49,15 +202,15 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--color-white) 5%, transparent);
     border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, var(--color-white) 20%, transparent);
     border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: color-mix(in srgb, var(--color-white) 30%, transparent);
 }

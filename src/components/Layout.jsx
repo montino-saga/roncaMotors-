@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 
 import {
     Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History,
-    Globe, Lock, PanelLeft, PanelLeftClose, User, LogOut, Menu
+    Globe, Lock, PanelLeft, PanelLeftClose, User, LogOut, Menu, Settings
 } from "lucide-react";
 import {
     motion, MotionConfig, animate, useMotionValue, useSpring,
@@ -67,6 +67,12 @@ const navSections = [
         items: [
             { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
             { href: "/historial", label: "Historial", icon: History },
+        ]
+    },
+    {
+        title: "Sistema",
+        items: [
+            { href: "/configuracion", label: "Configuración", icon: Settings },
         ]
     }
 ];
@@ -233,18 +239,7 @@ export function Layout({ children }) {
     return (
         <MotionConfig reducedMotion="user">
             <div className="min-h-screen overflow-x-clip bg-slate-950 text-slate-200 font-sans selection:bg-primary/30">
-                {/* Degradados pintados, no desenfocados: un blur-[120px] bajo el
-                    backdrop-blur del aside obliga a re-samplear el desenfoque en
-                    cada frame. Esto se ve igual y no toca al compositor. */}
-                <div
-                    className="fixed inset-0 z-0 pointer-events-none reduce-transparency:hidden"
-                    style={{
-                        backgroundImage: `
-                            radial-gradient(58% 46% at 2% -4%, rgba(37, 99, 235, 0.20), transparent 68%),
-                            radial-gradient(54% 44% at 98% 104%, rgba(147, 51, 234, 0.18), transparent 68%)
-                        `
-                    }}
-                />
+                <div className="aurora fixed inset-0 z-0 pointer-events-none reduce-transparency:hidden" />
 
                 {/* Barra superior móvil: material flotante, el contenido pasa por debajo */}
                 <header
@@ -326,7 +321,7 @@ export function Layout({ children }) {
                                 />
                             ) : (
                                 <div className="w-10 h-10 grid place-items-center bg-primary rounded-xl shadow-lg shadow-primary/25">
-                                    <LayoutDashboard className="w-5 h-5 text-white" />
+                                    <LayoutDashboard className="w-5 h-5 text-on-accent" />
                                 </div>
                             )}
                         </div>

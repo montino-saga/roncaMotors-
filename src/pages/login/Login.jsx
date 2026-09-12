@@ -45,7 +45,7 @@ function Login() {
             >
                 <div className="flex flex-col items-center gap-3">
                     <div className="p-3 bg-primary rounded-xl">
-                        <LayoutDashboard className="w-7 h-7 text-white" />
+                        <LayoutDashboard className="w-7 h-7 text-on-accent" />
                     </div>
                     <h1 className="text-2xl font-bold text-white">Iniciar sesión</h1>
                     <p className="text-sm text-slate-400">Acceso al panel de administración</p>

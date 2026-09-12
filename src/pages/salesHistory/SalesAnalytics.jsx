@@ -3,6 +3,8 @@ import { Card } from '../../components/ui/Card'
 import { formatCLP } from '../../lib/utils'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { TrendingUp, TrendingDown, DollarSign, ShoppingBag, CreditCard } from 'lucide-react'
+import { useAppearance } from '../../context/AppearanceContext'
+import { chartTheme } from '../../lib/chartTheme'
 
 function CustomTooltip({ active, payload, label }) {
     if (active && payload && payload.length) {
@@ -27,7 +29,8 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 export function SalesAnalytics({ sales, dateRange }) {
-    
+    const ct = chartTheme(useAppearance().resolved)
+
     // 1. Calcular KPIs
     const kpis = useMemo(() => {
         const totalSales = sales.reduce((acc, sale) => acc + (sale.totalVenta || 0), 0)
@@ -186,24 +189,24 @@ export function SalesAnalytics({ sales, dateRange }) {
                                         <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
                                 <XAxis 
                                     dataKey="name" 
-                                    stroke="#94a3b8" 
+                                    stroke={ct.axis} 
                                     tick={{fontSize: 12}}
                                     tickLine={false}
                                     axisLine={false}
                                     dy={10}
                                 />
                                 <YAxis 
-                                    stroke="#94a3b8" 
+                                    stroke={ct.axis} 
                                     tick={{fontSize: 12}}
                                     tickFormatter={(value) => `$${value/1000}k`}
                                     tickLine={false}
                                     axisLine={false}
                                     dx={-10}
                                 />
-                                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#ffffff20' }} />
+                                <Tooltip content={<CustomTooltip />} cursor={{ stroke: ct.cursorStroke }} />
                                 <Area 
                                     type="monotone" 
                                     dataKey="ventas" 
@@ -235,11 +238,11 @@ export function SalesAnalytics({ sales, dateRange }) {
                                 { name: 'Tarjeta', value: kpis.cardTotal, count: kpis.cardCount, fill: '#a855f7' },
                                 { name: 'Fiado', value: kpis.creditTotal, count: kpis.creditCount, fill: '#f59e0b' }
                             ]}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                                <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} />
-                                <YAxis stroke="#94a3b8" tickFormatter={(value) => `$${value/1000}k`} axisLine={false} tickLine={false} />
+                                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+                                <XAxis dataKey="name" stroke={ct.axis} axisLine={false} tickLine={false} />
+                                <YAxis stroke={ct.axis} tickFormatter={(value) => `$${value/1000}k`} axisLine={false} tickLine={false} />
                                 <Tooltip 
-                                    cursor={{fill: '#ffffff10'}}
+                                    cursor={{ fill: ct.cursor }}
                                     content={({ active, payload }) => {
                                         if (active && payload && payload.length) {
                                             return (

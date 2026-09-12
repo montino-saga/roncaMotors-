@@ -143,7 +143,7 @@ export function ImageUpload({ onImageUploaded, currentImage, className }) {
                         </div>
                         <button
                             onClick={removeImage}
-                            className="absolute top-2 right-2 p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-lg transition-colors z-10"
+                            className="absolute top-2 right-2 p-2 bg-red-500/80 hover:bg-red-500 text-on-accent rounded-lg transition-colors z-10"
                             type="button"
                         >
                             <X className="w-4 h-4" />

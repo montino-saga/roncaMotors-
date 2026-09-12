@@ -4,9 +4,9 @@ import { SPRING_SNAPPY } from "../../lib/motion";
 
 export function Button({ className, variant = "primary", children, ...props }) {
     const variants = {
-        primary: "bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30",
+        primary: "bg-primary hover:bg-primary/90 text-on-accent shadow-lg shadow-primary/30",
         secondary: "bg-white/10 hover:bg-white/20 text-white border border-white/10",
-        danger: "bg-red-500 hover:bg-red-400 text-white shadow-lg shadow-red-500/30",
+        danger: "bg-red-500 hover:bg-red-400 text-on-accent shadow-lg shadow-red-500/30",
     };
 
     return (

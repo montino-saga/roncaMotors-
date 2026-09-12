@@ -429,7 +429,7 @@ function SalesHistory() {
                                 className={cn(
                                     "flex items-center gap-2 px-3 rounded-lg text-sm font-medium transition-all",
                                     viewMode === 'list' 
-                                        ? "bg-primary text-white shadow" 
+                                        ? "bg-primary text-on-accent shadow" 
                                         : "text-slate-400 hover:text-white hover:bg-white/5"
                                 )}
                             >
@@ -441,7 +441,7 @@ function SalesHistory() {
                                 className={cn(
                                     "flex items-center gap-2 px-3 rounded-lg text-sm font-medium transition-all",
                                     viewMode === 'analytics' 
-                                        ? "bg-primary text-white shadow" 
+                                        ? "bg-primary text-on-accent shadow" 
                                         : "text-slate-400 hover:text-white hover:bg-white/5"
                                 )}
                             >
@@ -824,7 +824,7 @@ function SalesHistory() {
                             Cancelar
                         </Button>
                         <Button 
-                            className="bg-red-500 hover:bg-red-600 text-white border-none" 
+                            className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
                             onClick={executeDeleteSale} 
                             disabled={isDeleting}
                         >
@@ -889,7 +889,7 @@ function SalesHistory() {
                                 Cancelar
                             </Button>
                             <Button 
-                                className="bg-red-500 hover:bg-red-600 text-white border-none" 
+                                className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
                                 onClick={executeReturnProduct} 
                                 disabled={isDeleting}
                             >

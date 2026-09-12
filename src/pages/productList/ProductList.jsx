@@ -683,7 +683,7 @@ function ProductList() {
                           className={cn(
                             "w-9 h-9 text-sm font-medium rounded-lg transition-colors tabular-nums", PRESS,
                             page === pageNum
-                              ? 'bg-primary text-white'
+                              ? 'bg-primary text-on-accent'
                               : 'text-slate-300 hover:bg-white/10'
                           )}
                         >
