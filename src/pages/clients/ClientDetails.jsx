@@ -5,6 +5,7 @@ import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { SkeletonCard, SkeletonKpis, SkeletonRows } from '../../components/ui/Skeleton'
+import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
@@ -38,6 +39,7 @@ function ClientDetails() {
     useCatalogo()   // calienta el catálogo: restaurar stock no consulta al servidor
     const [client, setClient] = useState(null)
     const [loading, setLoading] = useState(true)
+    const mostrarSkeleton = useDelayedLoading(loading)
     const [clientMovements, setClientMovements] = useState([])
     const [loadingMovements, setLoadingMovements] = useState(false)
     
@@ -157,15 +159,21 @@ function ClientDetails() {
                 lastUpdated: Timestamp.now()
             })
 
-            await batch.commit()
-
-            toast.success('Abono registrado correctamente')
+            // Optimista: el modal se cierra y la deuda baja al instante; si
+            // el servidor rechaza, la deuda vuelve y se avisa.
+            const deudaAnterior = client.currentDebt || 0
             setIsPaymentModalOpen(false)
             setPaymentAmount('')
-            
-            // Refresh local state
             setClient(prev => ({ ...prev, currentDebt: newDebt }))
-            fetchMovements(client.id)
+            toast.success('Abono registrado correctamente', { description: formatCLP(amount) })
+
+            batch.commit()
+                .then(() => fetchMovements(client.id))
+                .catch((error) => {
+                    console.error("Error processing payment:", error)
+                    setClient(prev => ({ ...prev, currentDebt: deudaAnterior }))
+                    toast.error('El abono no se guardó', { description: 'La deuda se ha restaurado. Intenta de nuevo.', duration: 8000 })
+                })
         } catch (error) {
             console.error("Error processing payment:", error)
             toast.error('Error al registrar abono')
@@ -397,6 +405,7 @@ function ClientDetails() {
     }, [activeTab])
 
     if (loading) {
+        if (!mostrarSkeleton) return null
         return (
             <div className="space-y-6" aria-busy="true" aria-label="Cargando perfil">
                 <SkeletonCard lines={1} className="p-5" />

@@ -9,11 +9,13 @@ import { formatCLP, cn } from '../../lib/utils'
 import { toast } from 'sonner'
 import { Lock, Unlock, DollarSign, TrendingUp, TrendingDown, History, AlertTriangle, Trash2 } from 'lucide-react'
 import { Skeleton, SkeletonCard, SkeletonKpis, SkeletonHeader } from '../../components/ui/Skeleton'
+import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { useAuth } from '../../context/AuthContext'
 
 function CashClose() {
     const { user } = useAuth()
     const [loading, setLoading] = useState(true)
+    const mostrarSkeleton = useDelayedLoading(loading)
     const [session, setSession] = useState(null)
     const [cashSales, setCashSales] = useState(0)
     const [movements, setMovements] = useState([])
@@ -229,6 +231,7 @@ function CashClose() {
     const difference = closingCount ? (Number(closingCount) - expectedBalance) : 0
 
     if (loading) {
+        if (!mostrarSkeleton) return null
         return (
             <div className="space-y-8" aria-busy="true" aria-label="Cargando caja">
                 <SkeletonHeader actions={2} />

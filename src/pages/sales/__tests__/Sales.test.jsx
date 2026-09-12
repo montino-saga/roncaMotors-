@@ -236,3 +236,27 @@ describe('Punto de venta', () => {
     expect(screen.getByRole('heading', { name: 'Monster Blanco' })).toBeInTheDocument()
   })
 })
+
+describe('Punto de venta: vacío accionable', () => {
+  it('"Buscar producto" lleva el foco al buscador', async () => {
+    const user = userEvent.setup()
+    render(<Sales />)
+    await user.click(screen.getByRole('button', { name: 'Buscar producto' }))
+    expect(screen.getByPlaceholderText(/Escanear o buscar/i)).toHaveFocus()
+  })
+})
+
+describe('Punto de venta: optimismo', () => {
+  it('venta optimista: el carrito se vacía al instante y vuelve si el servidor falla', async () => {
+    const user = userEvent.setup()
+    firestoreMock.writeBatch.mockImplementationOnce(() => ({
+      set: () => {}, update: () => {}, delete: () => {},
+      commit: () => Promise.reject(new Error('offline')),
+    }))
+    render(<Sales />)
+    await escanear(user, 'ABC123')
+    await user.click(screen.getByRole('button', { name: 'Finalizar Venta' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('La venta no se guardó', expect.anything()))
+    expect(screen.getByRole('heading', { name: 'Monster Blanco' })).toBeInTheDocument()
+  })
+})

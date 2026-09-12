@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '../../db/firebase'
@@ -6,10 +7,12 @@ import { Modal } from '../../components/ui/Modal'
 import { Eye, Calendar, Globe, CreditCard, Banknote, Package, Clock } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 
 function WebOrders() {
     const [orders, setOrders] = useState([])
     const [loading, setLoading] = useState(true)
+    const mostrarSkeleton = useDelayedLoading(loading)
     const [selectedOrder, setSelectedOrder] = useState(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -42,6 +45,7 @@ function WebOrders() {
             setLoading(false)
         }, (error) => {
             console.error("Error fetching web orders:", error)
+            toast.error('No se pudieron cargar los pedidos web')
             setLoading(false)
         })
 
@@ -54,6 +58,7 @@ function WebOrders() {
     }
 
     if (loading) {
+        if (!mostrarSkeleton) return null
         return (
             <div className="space-y-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

@@ -12,11 +12,13 @@ import { cn, formatCLP } from '../../lib/utils'
 import { toast } from 'sonner'
 import { Button } from '../../components/ui/Button'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { SalesAnalytics } from './SalesAnalytics'
 
 function SalesHistory() {
     const [sales, setSales] = useState([])
     const [loading, setLoading] = useState(true)
+    const mostrarSkeleton = useDelayedLoading(loading)
     const [selectedSale, setSelectedSale] = useState(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
     
@@ -24,7 +26,7 @@ function SalesHistory() {
     const [viewMode, setViewMode] = usePersistedState('roncamotors_sales_view', 'list') // 'list' | 'analytics'
 
     // Date Range State
-    const [dateRange, setDateRange] = useState('day') // day, week, month, 3months, 6months, year
+    const [dateRange, setDateRange] = usePersistedState('roncamotors_sales_range', 'day') // day, week, month, 3months, 6months, year
     const [selectedDate, setSelectedDate] = useState(() => {
         const now = new Date()
         const year = now.getFullYear()
@@ -128,6 +130,7 @@ function SalesHistory() {
                 setSales(salesData)
             } catch (error) {
                 console.error("Error fetching sales history:", error)
+                toast.error('No se pudo cargar el historial de ventas')
             } finally {
                 setLoading(false)
             }
@@ -534,7 +537,7 @@ function SalesHistory() {
             </div>
 
             {loading ? (
-                 <div className="space-y-4">
+                 mostrarSkeleton && <div className="space-y-4">
                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                          <div className="space-y-2">
                              <Skeleton className="h-10 w-64" />

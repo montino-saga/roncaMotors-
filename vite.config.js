@@ -37,4 +37,17 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    // Vendors en chunks propios: cambian poco, así un deploy de la app no
+    // invalida en el móvil el megabyte de Firebase.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+          react: ['react', 'react-dom', 'react-router-dom'],
+          motion: ['framer-motion'],
+        },
+      },
+    },
+  },
 })

@@ -11,13 +11,49 @@ import { Search, Trash2, ShoppingCart, CreditCard, Banknote, User, Package, Minu
 import { cn, formatCLP } from '../../lib/utils'
 import { SPRING, PRESS } from '../../lib/motion'
 import { toast } from 'sonner'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion, useMotionValue, useTransform, animate } from 'framer-motion'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { printer } from '../../lib/printer'
 import { sounds } from '../../lib/sounds'
 import { useTheme } from '../../context/ThemeContext'
 import { useCatalogo } from '../../lib/catalogo'
 import { buscarPorCodigo, filtrarCatalogo } from '../../lib/buscarProductos'
 import { precioLista, precioCobrado, calcularDescuento, aplicarDescuentoItem, quitarDescuentoItem, subtotalCarrito, descuentoTotalAcotado, totalesCarrito } from '../../lib/descuentos'
+
+// Móvil: arrastrar la fila a la izquierda la quita. El rojo asoma debajo a
+// medida que se desliza; si no llega al umbral, vuelve con el mismo muelle.
+const UMBRAL_SWIPE = 96
+function Deslizable({ enabled, onDelete, children }) {
+    const x = useMotionValue(0)
+    const fondo = useTransform(x, [-UMBRAL_SWIPE, -16], [1, 0])
+    if (!enabled) return children
+    return (
+        <div className="relative">
+            <motion.div
+                style={{ opacity: fondo }}
+                aria-hidden="true"
+                className="absolute inset-0 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-end pr-5 text-red-400"
+            >
+                <Trash2 className="w-5 h-5" />
+            </motion.div>
+            <motion.div
+                drag="x"
+                style={{ x }}
+                dragDirectionLock
+                dragConstraints={{ left: -UMBRAL_SWIPE * 1.5, right: 0 }}
+                dragElastic={{ left: 0.15, right: 0 }}
+                dragMomentum={false}
+                onDragEnd={(_, info) => {
+                    if (info.offset.x < -UMBRAL_SWIPE || info.velocity.x < -600) onDelete()
+                    else animate(x, 0, SPRING)
+                }}
+                className="relative touch-pan-y"
+            >
+                {children}
+            </motion.div>
+        </div>
+    )
+}
 
 function Sales() {
     const { settings } = useTheme()
@@ -30,6 +66,7 @@ function Sales() {
     const [paymentType, setPaymentType] = usePersistedState('roncamotors_pos_payment_type', 'efectivo')
     const [isPrinterConnected] = useState(false)
     const inputRef = useRef(null)
+    const tactil = useMediaQuery('(pointer: coarse)')
     const listRef = useRef(null)
     const reduce = useReducedMotion()
 
@@ -241,8 +278,10 @@ function Sales() {
             const productRef = doc(db, 'productos', pendingProduct.id)
             const newStock = Number(newStockValue)
 
-            await updateDoc(productRef, {
-                cantidadProducto: newStock
+            // Optimista: el modal se cierra y el producto entra al carrito ya.
+            updateDoc(productRef, { cantidadProducto: newStock }).catch((error) => {
+                console.error("Error updating stock:", error)
+                toast.error('No se pudo actualizar el stock', { description: pendingProduct.nombreProducto, duration: 8000 })
             })
 
             toast.success('Stock actualizado', {
@@ -322,7 +361,7 @@ function Sales() {
     const calculateProfit = () => totalesCarrito(cart, descuentoTotal).ganancia
 
     const handleCheckout = async () => {
-        if (cart.length === 0) return
+        if (cart.length === 0 || processing) return
 
         if (paymentType === 'fiado') {
             setIsDebtModalOpen(true)
@@ -391,12 +430,32 @@ function Sales() {
                 batch.update(productRef, { cantidadProducto: increment(-item.cantidad) })
             })
 
-            // 3. Commit Batch
-            await batch.commit()
+            // 3. Optimista: la caja queda libre al instante; si el servidor
+            // rechaza, el carrito vuelve tal cual estaba y se avisa.
+            const snapshot = { cart, descuentoTotal, paymentType }
+            const commit = batch.commit()
             sounds.playSuccess()
+            toast.success('Venta realizada con éxito', {
+                description: `Total: ${formatCLP(saleData.totalVenta)} - Pago: ${paymentType}`,
+                duration: 3000
+            })
+            commitCart([])
+            setDescuentoTotal(0)
+            setPaymentType('efectivo')
+            setProcessing(false)
+            inputRef.current?.focus()
+
+            commit.catch((error) => {
+                console.error("Error processing sale:", error)
+                commitCart(snapshot.cart)
+                setDescuentoTotal(snapshot.descuentoTotal)
+                setPaymentType(snapshot.paymentType)
+                toast.error('La venta no se guardó', { description: 'El carrito se ha restaurado. Intenta de nuevo.', duration: 8000 })
+            })
 
             // 4. Print Receipt (Silent)
             if (isPrinterConnected) {
+                await commit
                 try {
                     await printer.printReceipt(saleData)
                 } catch (printError) {
@@ -404,18 +463,9 @@ function Sales() {
                     toast.error("Venta guardada, pero falló la impresión")
                 }
             }
-
-            toast.success('Venta realizada con éxito', {
-                description: `Total: ${formatCLP(saleData.totalVenta)} - Pago: ${paymentType}`,
-                duration: 3000
-            })
-
-            commitCart([])
-            setPaymentType('efectivo')
         } catch (error) {
             console.error("Error processing sale:", error)
             toast.error('Error al procesar la venta')
-        } finally {
             setProcessing(false)
             inputRef.current?.focus()
         }
@@ -496,8 +546,16 @@ function Sales() {
                 batch.update(productRef, { cantidadProducto: increment(-item.cantidad) })
             })
 
-            // 5. Commit Batch
-            await batch.commit()
+            // 5. Optimista: el modal se cierra ya; si falla, el carrito vuelve.
+            const snapshot = { cart, descuentoTotal, clientId: selectedClientId }
+            batch.commit().catch((error) => {
+                console.error("Error processing debt sale:", error)
+                commitCart(snapshot.cart)
+                setDescuentoTotal(snapshot.descuentoTotal)
+                setPaymentType('fiado')
+                setSelectedClientId(snapshot.clientId)
+                toast.error('El fiado no se guardó', { description: 'El carrito se ha restaurado. Intenta de nuevo.', duration: 8000 })
+            })
             sounds.playSuccess()
 
             toast.success('Fiado registrado correctamente', {
@@ -506,6 +564,7 @@ function Sales() {
             })
 
             commitCart([])
+            setDescuentoTotal(0)
             setPaymentType('efectivo')
             setIsDebtModalOpen(false)
             setSelectedClientId('')
@@ -1071,7 +1130,15 @@ function Sales() {
                                 >
                                     <ShoppingCart className="w-12 h-12 md:w-16 md:h-16 mb-2 md:mb-4 opacity-40" />
                                     <p className="text-base md:text-lg font-medium">Carrito vacío</p>
-                                    <p className="text-xs md:text-sm text-slate-500">Escanea productos</p>
+                                    <p className="text-xs md:text-sm text-slate-500">Escanea o busca un producto</p>
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => inputRef.current?.focus()}
+                                        className="mt-4 h-10 px-4 text-sm inline-flex items-center gap-2"
+                                    >
+                                        <Search className="w-4 h-4" />
+                                        Buscar producto
+                                    </Button>
                                 </motion.div>
                             ) : (
                                 cart.map((item, index) => (
@@ -1083,6 +1150,9 @@ function Sales() {
                                         // Sale por donde entró.
                                         exit={{ opacity: 0, x: 24 }}
                                         transition={SPRING}
+                                    >
+                                    <Deslizable enabled={tactil} onDelete={() => removeFromCart(index)}>
+                                    <div
                                         className="flex items-center gap-2.5 @md:gap-4 p-2 @md:p-3 rounded-xl
                                                    bg-slate-950/50 border border-white/10 hover:border-white/20
                                                    transition-colors reduce-transparency:bg-slate-950
@@ -1182,6 +1252,8 @@ function Sales() {
                                                 <Trash2 className="w-4 h-4 @md:w-5 @md:h-5" />
                                             </button>
                                         </div>
+                                    </div>
+                                    </Deslizable>
                                     </motion.div>
                                 ))
                             )}

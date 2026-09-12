@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { collection, addDoc, getDocs, query, orderBy, Timestamp } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { SkeletonCard } from '../../components/ui/Skeleton'
+import { useDelayedLoading } from '../../hooks/useDelayedLoading'
+import { invalidarClientes } from '../../lib/clientes'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
@@ -14,10 +16,17 @@ import { formatRut, validarRut } from '../../lib/rut'
 
 function Clients() {
     const navigate = useNavigate()
+    // /clientes?nuevo=1 (acción de la barra móvil): abre el alta y limpia la URL.
+    const [searchParams, setSearchParams] = useSearchParams()
+    const abrirDesdeUrl = searchParams.get('nuevo') === '1'
     const [clients, setClients] = useState([])
     const [loading, setLoading] = useState(true)
+    const mostrarSkeleton = useDelayedLoading(loading)
     const [searchTerm, setSearchTerm] = useState('')
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(abrirDesdeUrl)
+    useEffect(() => {
+        if (abrirDesdeUrl) setSearchParams({}, { replace: true })
+    }, [abrirDesdeUrl, setSearchParams])
     
     // New Client State
     const [newClientName, setNewClientName] = useState('')
@@ -72,6 +81,7 @@ function Clients() {
             })
             toast.success('Cliente creado correctamente')
             setIsCreateModalOpen(false)
+            invalidarClientes()
             setNewClientName('')
             setNewClientPhone('')
             setNewClientEmail('')
@@ -154,11 +164,26 @@ function Clients() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {loading ? (
-                    Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} lines={2} className="p-6" />)
+                    mostrarSkeleton && Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} lines={2} className="p-6" />)
                 ) : filteredClients.length === 0 ? (
                     <div className="col-span-full text-center py-12 bg-white/5 rounded-xl border border-white/10 border-dashed">
                         <User className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                        <p className="text-slate-400">No se encontraron clientes.</p>
+                        {searchTerm ? (
+                            <>
+                                <p className="text-slate-400">Ningún cliente coincide con «{searchTerm}».</p>
+                                <Button variant="secondary" onClick={() => setSearchTerm('')} className="mt-4 h-10 text-sm">
+                                    Limpiar búsqueda
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-slate-400">Aún no hay clientes.</p>
+                                <Button onClick={() => setIsCreateModalOpen(true)} className="mt-4 h-10 text-sm inline-flex items-center gap-2">
+                                    <Plus className="w-4 h-4" />
+                                    Crear el primero
+                                </Button>
+                            </>
+                        )}
                     </div>
                 ) : (
                     filteredClients.map(client => (

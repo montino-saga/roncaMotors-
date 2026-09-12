@@ -2,16 +2,18 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
+import { usePersistedState } from '../../hooks/usePersistedState'
 import {
   ArrowUpDown, Search, Package, Tag, Edit, Trash2, AlertTriangle, X,
-  Wallet, TrendingUp, TrendingDown, PackageX, Snowflake, CircleHelp, Copy, Receipt
+  Wallet, TrendingUp, TrendingDown, PackageX, Snowflake, CircleHelp, Copy, Receipt, Plus
 } from 'lucide-react'
-import { Modal } from '../../components/ui/Modal'
-import { doc, deleteDoc } from 'firebase/firestore'
+import { Button } from '../../components/ui/Button'
+import { doc, deleteDoc, setDoc } from 'firebase/firestore'
 import { useCatalogo } from '../../lib/catalogo'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { cn } from '../../lib/utils'
 import { PRESS } from '../../lib/motion'
 import { esAfecto, netoDe } from '../../lib/iva'
@@ -91,9 +93,8 @@ function ProductList() {
   // Catálogo compartido: 0 lecturas al entrar, y refleja altas/bajas al instante.
   const { productos, listo } = useCatalogo()
   const loading = !listo
-  const [orden, setOrden] = useState('')
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [productToDelete, setProductToDelete] = useState(null)
+  const mostrarSkeleton = useDelayedLoading(loading)
+  const [orden, setOrden] = usePersistedState('roncamotors_productos_orden', '')
 
   // Search & Pagination State
   const [searchTerm, setSearchTerm] = useState('')
@@ -102,6 +103,9 @@ function ProductList() {
   const [currentPage, setCurrentPage] = useState(1)
   const [alerta, setAlerta] = useState(null)   // 'bajo' | 'muerto' | 'margen' | 'sinCosto' | 'duplicado'
   const [rotacion, setRotacion] = useState(new Map())
+  // Instante de la lectura de rotación: los "días sin venta" se miden desde
+  // aquí y no con Date.now() en render, que el compilador de React no permite.
+  const [rotacionAt, setRotacionAt] = useState(0)
   const [rotacionError, setRotacionError] = useState(false)
   const itemsPerPage = 100
   const scrollRef = useRef(null)
@@ -113,32 +117,32 @@ function ProductList() {
 
   // Rotación: unidades vendidas y última venta por idProducto. Si esta lectura
   // falla, la vista sigue funcionando sin las columnas de rotación.
-  const obtenerRotacion = async () => {
-    try {
-      const desde = Timestamp.fromDate(new Date(Date.now() - VENTANA_DIAS * DIA_MS))
-      const snap = await getDocs(query(collection(db, 'sales'), where('fechaVenta', '>=', desde)))
-
-      const acc = new Map()
-      snap.forEach((d) => {
-        const venta = d.data()
-        const fecha = venta.fechaVenta?.toDate?.()
-        venta.productos?.forEach((item) => {
-          // Los abonos viajan como un ítem sintético, no son inventario.
-          if (!item.idProducto || item.idProducto === 'ABONO' || item.esAbono) return
-          const prev = acc.get(item.idProducto) || { unidades: 0, ultima: null }
-          prev.unidades += Number(item.cantidad) || 0
-          if (fecha && (!prev.ultima || fecha > prev.ultima)) prev.ultima = fecha
-          acc.set(item.idProducto, prev)
-        })
-      })
-      setRotacion(acc)
-    } catch (error) {
-      console.error('Error al obtener rotación:', error)
-      setRotacionError(true)
-    }
-  }
-
   useEffect(() => {
+    const obtenerRotacion = async () => {
+      try {
+        const desde = Timestamp.fromDate(new Date(Date.now() - VENTANA_DIAS * DIA_MS))
+        const snap = await getDocs(query(collection(db, 'sales'), where('fechaVenta', '>=', desde)))
+
+        const acc = new Map()
+        snap.forEach((d) => {
+          const venta = d.data()
+          const fecha = venta.fechaVenta?.toDate?.()
+          venta.productos?.forEach((item) => {
+            // Los abonos viajan como un ítem sintético, no son inventario.
+            if (!item.idProducto || item.idProducto === 'ABONO' || item.esAbono) return
+            const prev = acc.get(item.idProducto) || { unidades: 0, ultima: null }
+            prev.unidades += Number(item.cantidad) || 0
+            if (fecha && (!prev.ultima || fecha > prev.ultima)) prev.ultima = fecha
+            acc.set(item.idProducto, prev)
+          })
+        })
+        setRotacion(acc)
+        setRotacionAt(Date.now())
+      } catch (error) {
+        console.error('Error al obtener rotación:', error)
+        setRotacionError(true)
+      }
+    }
     obtenerRotacion()
   }, [])
 
@@ -163,24 +167,23 @@ function ProductList() {
     'rotacion-asc': (a, b) => (a._unidades - b._unidades) || (b._valorCosto - a._valorCosto)
   }
 
+  // Sin diálogo de confirmación: se borra ya y el toast ofrece deshacer, que
+  // restaura el documento tal cual. Más rápido y no entrena a aceptar sin leer.
   const handleDeleteClick = (producto) => {
-    setProductToDelete(producto)
-    setIsModalOpen(true)
-  }
-
-  const confirmDelete = async () => {
-    if (!productToDelete) return
-
-    try {
-      await deleteDoc(doc(db, 'productos', productToDelete.id))
-      toast.success('Producto eliminado correctamente')
-    } catch (error) {
+    const { id, ...data } = producto
+    const ref = doc(db, 'productos', id)
+    deleteDoc(ref).catch((error) => {
       console.error("Error al eliminar producto:", error)
-      toast.error('Error al eliminar el producto')
-    } finally {
-      setIsModalOpen(false)
-      setProductToDelete(null)
-    }
+      toast.error('Error al eliminar el producto', { description: producto.nombreProducto })
+    })
+    toast('Producto eliminado', {
+      description: producto.nombreProducto,
+      duration: 8000,
+      action: {
+        label: 'Deshacer',
+        onClick: () => setDoc(ref, data).catch(() => toast.error('No se pudo restaurar el producto'))
+      }
+    })
   }
 
   // Rojo solo para agotado, que es el problema real; ámbar avisa. Antes <10 era
@@ -218,7 +221,7 @@ function ProductList() {
       const rot = rotacion.get(p.idProducto)
       const unidades = rot?.unidades ?? 0
       const ultima = rot?.ultima ?? null
-      const diasSinVenta = ultima ? Math.floor((Date.now() - ultima.getTime()) / DIA_MS) : null
+      const diasSinVenta = ultima ? Math.floor((rotacionAt - ultima.getTime()) / DIA_MS) : null
       const porDia = unidades / VENTANA_DIAS
       const cobertura = porDia > 0 ? Math.round(stock / porDia) : null
 
@@ -249,7 +252,7 @@ function ProductList() {
         }
       }
     })
-  }, [productos, rotacion])
+  }, [productos, rotacion, rotacionAt])
 
   // Filter Logic
   const filtrados = enriquecidos.filter(product => {
@@ -478,7 +481,7 @@ function ProductList() {
       )}
 
       {loading ? (
-        <Card className="flex-1 min-h-0 p-0 overflow-hidden">
+        mostrarSkeleton && <Card className="flex-1 min-h-0 p-0 overflow-hidden">
           <div className="p-4 space-y-4 h-full overflow-hidden">
             {[...Array(12)].map((_, i) => (
               <div key={i} className="flex gap-4 items-center">
@@ -640,8 +643,28 @@ function ProductList() {
               {currentItems.length === 0 && (
                 <div className="py-16 flex flex-col items-center justify-center text-slate-400">
                   <Package className="w-12 h-12 mb-3 opacity-40" />
-                  <p className="font-medium">Ningún producto coincide</p>
-                  <p className="text-sm text-slate-500">Prueba con otro texto o rango de stock</p>
+                  {productos.length === 0 ? (
+                    <>
+                      <p className="font-medium">Aún no hay productos</p>
+                      <p className="text-sm text-slate-500">Crea el primero para empezar a vender</p>
+                      <Button onClick={() => navigate('/crear')} className="mt-4 h-10 text-sm inline-flex items-center gap-2">
+                        <Plus className="w-4 h-4" />
+                        Crear producto
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium">Ningún producto coincide</p>
+                      <p className="text-sm text-slate-500">Prueba con otro texto o rango de stock</p>
+                      <Button
+                        variant="secondary"
+                        onClick={() => { setSearchTerm(''); setMinStock(''); setMaxStock(''); setAlerta(null) }}
+                        className="mt-4 h-10 text-sm"
+                      >
+                        Limpiar filtros
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -709,32 +732,6 @@ function ProductList() {
         </Card>
       )}
 
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Confirmar Eliminación"
-      >
-        <div className="space-y-4">
-          <p className="text-slate-300">
-            ¿Estás seguro de que deseas eliminar el producto <span className="font-semibold text-white">{productToDelete?.nombreProducto}</span>?
-            Esta acción no se puede deshacer.
-          </p>
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={confirmDelete}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors shadow-lg shadow-red-500/20"
-            >
-              Eliminar Producto
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }

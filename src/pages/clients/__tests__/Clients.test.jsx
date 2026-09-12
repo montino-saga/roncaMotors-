@@ -91,3 +91,18 @@ describe('Clientes', () => {
     expect(escrituras.adds).toHaveLength(0)
   })
 })
+
+describe('Clientes: atajos', () => {
+  it('/clientes?nuevo=1 abre el alta y limpia la URL', async () => {
+    render(<MemoryRouter initialEntries={['/clientes?nuevo=1']}><Clients /></MemoryRouter>)
+    expect(await screen.findByRole('dialog', { name: 'Nuevo Cliente' })).toBeInTheDocument()
+  })
+
+  it('sin clientes ofrece crear el primero', async () => {
+    const user = userEvent.setup()
+    coleccionesFake.clients = []
+    render(<MemoryRouter><Clients /></MemoryRouter>)
+    await user.click(await screen.findByRole('button', { name: /Crear el primero/ }))
+    expect(screen.getByRole('dialog', { name: 'Nuevo Cliente' })).toBeInTheDocument()
+  })
+})

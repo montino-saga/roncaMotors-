@@ -1,5 +1,6 @@
 import { cn } from "../../lib/utils"
 import { Card } from "./Card"
+import { useDelayedLoading } from "../../hooks/useDelayedLoading"
 
 function Skeleton({ className, ...props }) {
     return (
@@ -70,4 +71,17 @@ function SkeletonRows({ rows = 6, className }) {
     )
 }
 
-export { Skeleton, SkeletonCard, SkeletonKpis, SkeletonHeader, SkeletonRows }
+// Fallback de Suspense: esqueleto genérico de página, solo si el chunk tarda.
+function VistaSkeleton() {
+    const mostrar = useDelayedLoading(true)
+    if (!mostrar) return null
+    return (
+        <div className="space-y-6" aria-busy="true" aria-label="Cargando">
+            <SkeletonHeader actions={1} />
+            <SkeletonKpis />
+            <SkeletonCard lines={6} className="p-6" />
+        </div>
+    )
+}
+
+export { Skeleton, SkeletonCard, SkeletonKpis, SkeletonHeader, SkeletonRows, VistaSkeleton }
