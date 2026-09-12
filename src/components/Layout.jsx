@@ -303,11 +303,17 @@ export function Layout({ children }) {
 
                     <div className="flex items-center h-12 mb-6 shrink-0">
                         <div className="w-12 h-12 shrink-0 grid place-items-center">
-                            <div className="w-10 h-10 grid place-items-center bg-primary rounded-xl shadow-lg shadow-primary/25">
-                                {settings.logo
-                                    ? <img src={settings.logo} alt="" className="w-6 h-6 object-contain" />
-                                    : <LayoutDashboard className="w-5 h-5 text-white" />}
-                            </div>
+                            {settings.logo ? (
+                                <img
+                                    src={settings.logo}
+                                    alt=""
+                                    className="w-10 h-10 rounded-xl object-cover ring-1 ring-white/15 shadow-lg shadow-black/30"
+                                />
+                            ) : (
+                                <div className="w-10 h-10 grid place-items-center bg-primary rounded-xl shadow-lg shadow-primary/25">
+                                    <LayoutDashboard className="w-5 h-5 text-white" />
+                                </div>
+                            )}
                         </div>
                         <motion.div style={{ opacity: labelOpacity }} className="ml-2 min-w-0">
                             {loading ? (

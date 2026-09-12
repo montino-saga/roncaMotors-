@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { collection, addDoc, updateDoc, doc, getDocs, query, where, orderBy, Timestamp, limit } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, getDocs, query, where, Timestamp, limit } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { usePersistedState } from '../../hooks/usePersistedState'
-import { collection, getDocs, getDoc, query, where, writeBatch, doc, Timestamp, updateDoc, orderBy } from 'firebase/firestore'
+import { collection, getDocs, query, where, writeBatch, doc, Timestamp, updateDoc, orderBy, increment } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -15,17 +15,20 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { printer } from '../../lib/printer'
 import { sounds } from '../../lib/sounds'
 import { useTheme } from '../../context/ThemeContext'
+import { useCatalogo } from '../../lib/catalogo'
+import { buscarPorCodigo, filtrarCatalogo } from '../../lib/buscarProductos'
+import { precioLista, precioCobrado, calcularDescuento, aplicarDescuentoItem, quitarDescuentoItem, subtotalCarrito, descuentoTotalAcotado, totalesCarrito } from '../../lib/descuentos'
 
 function Sales() {
     const { settings } = useTheme()
     const [cart, setCart] = usePersistedState('roncamotors_pos_cart', [])
     const [productId, setProductId] = useState('')
     const [loading, setLoading] = useState(false)
-    const [catalog, setCatalog] = useState([])
+    const { productos: catalog, porCodigo, listo: catalogoListo } = useCatalogo()
     const [activeIdx, setActiveIdx] = useState(0)
     const [processing, setProcessing] = useState(false)
     const [paymentType, setPaymentType] = usePersistedState('roncamotors_pos_payment_type', 'efectivo')
-    const [isPrinterConnected, setIsPrinterConnected] = useState(false)
+    const [isPrinterConnected] = useState(false)
     const inputRef = useRef(null)
     const listRef = useRef(null)
     const reduce = useReducedMotion()
@@ -42,26 +45,14 @@ function Sales() {
         return next
     }
 
-    // Attempt to connect printer automatically on mount (optional, nice to have if button is gone)
-    useEffect(() => {
-        const autoConnect = async () => {
-            const connected = await printer.connect()
-            if (connected) setIsPrinterConnected(true)
-        }
-        // autoConnect() // Uncomment if auto-connect is desired behavior
-    }, [])
 
-    const getListPrice = (item) => Number(item?.precioVentaLocal ?? item?.precioProducto ?? 0)
-    // Un descuento vive en el ítem del carrito como precio unitario final, así
-    // total, ganancia, boleta y cotización lo heredan sin tocar nada más.
-    const getLocalPrice = (item) => item?.precioDescuento != null ? Number(item.precioDescuento) : getListPrice(item)
+    const getListPrice = precioLista
+    const getLocalPrice = precioCobrado
 
-    // Descuento al total, aparte de los de cada ítem. Se guarda en CLP, no en %,
-    // porque el vendedor pacta "te lo dejo en 10.000", no "un 7,3%".
     const [descuentoTotal, setDescuentoTotal] = usePersistedState('roncamotors_pos_discount', 0)
 
-    const calculateSubtotal = () => cart.reduce((total, item) => total + (getLocalPrice(item) * item.cantidad), 0)
-    const calculateTotal = () => Math.max(0, calculateSubtotal() - descuentoTotal)
+    const calculateSubtotal = () => subtotalCarrito(cart)
+    const calculateTotal = () => totalesCarrito(cart, descuentoTotal).total
 
     // Discount Modal State: índice del ítem, o 'total' para el carrito completo.
     const [discountIdx, setDiscountIdx] = useState(null)
@@ -73,16 +64,7 @@ function Sales() {
     // Precio de referencia sobre el que se descuenta.
     const discountBase = esTotal ? calculateSubtotal() : discountItem ? getListPrice(discountItem) : 0
     const discountActual = esTotal ? descuentoTotal > 0 : discountItem?.precioDescuento != null
-    const discountPreview = (() => {
-        if (!discountOpen) return null
-        const v = Number(discountValue)
-        if (discountValue === '' || isNaN(v)) return null
-        if (discountMode === 'pct') {
-            if (v < 0 || v > 100) return null
-            return Math.round(discountBase * (1 - v / 100))
-        }
-        return v >= 0 && v <= discountBase ? v : null
-    })()
+    const discountPreview = discountOpen ? calcularDescuento(discountBase, discountMode, discountValue) : null
 
     const openDiscount = (target) => {
         setDiscountIdx(target)
@@ -104,14 +86,9 @@ function Sales() {
         if (esTotal) {
             setDescuentoTotal(discountBase - discountPreview)
         } else {
-            commitCart(cartRef.current.map((item, i) => {
-                if (i !== discountIdx) return item
-                if (discountPreview >= getListPrice(item)) {
-                    const { precioDescuento: _omit, ...rest } = item
-                    return rest
-                }
-                return { ...item, precioDescuento: discountPreview }
-            }))
+            commitCart(cartRef.current.map((item, i) =>
+                i === discountIdx ? aplicarDescuentoItem(item, discountPreview) : item
+            ))
         }
         setDiscountIdx(null)
     }
@@ -120,11 +97,9 @@ function Sales() {
         if (esTotal) {
             setDescuentoTotal(0)
         } else {
-            commitCart(cartRef.current.map((item, i) => {
-                if (i !== discountIdx) return item
-                const { precioDescuento: _omit, ...rest } = item
-                return rest
-            }))
+            commitCart(cartRef.current.map((item, i) =>
+                i === discountIdx ? quitarDescuentoItem(item) : item
+            ))
         }
         setDiscountIdx(null)
     }
@@ -132,32 +107,14 @@ function Sales() {
     // Sin carrito no hay a qué descontar; y si el carrito baja del descuento,
     // se recorta en vez de dejar un total negativo escondido.
     useEffect(() => {
-        if (!cart.length && descuentoTotal) setDescuentoTotal(0)
-        else if (descuentoTotal > calculateSubtotal()) setDescuentoTotal(calculateSubtotal())
+        const acotado = descuentoTotalAcotado(cart, descuentoTotal)
+        if (acotado !== descuentoTotal) setDescuentoTotal(acotado)
     }, [cart]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Firestore no busca por subcadena: el catálogo vive en memoria y se filtra
-    // aquí. El stock se relee del documento al agregar, así que da igual que
-    // esta copia envejezca durante la sesión.
-    useEffect(() => {
-        getDocs(collection(db, 'productos'))
-            .then(snap => setCatalog(snap.docs.map(d => ({ ...d.data(), id: d.id }))))
-            .catch(err => console.error('Error cargando catálogo:', err))
-    }, [])
-
+    // El catálogo es el listener compartido (lib/catalogo): buscar por código o
+    // por nombre no cuesta lecturas, y el stock que se ve es el real en vivo.
     const term = productId.trim().toLowerCase()
-    const suggestions = useMemo(() => {
-        if (term.length < 2) return []
-        // Coincidencia exacta de código = escaneo: no distraer con lista.
-        if (catalog.some(p => p.idProducto?.toLowerCase() === term)) return []
-        return catalog
-            .filter(p =>
-                p.nombreProducto?.toLowerCase().includes(term) ||
-                p.idProducto?.toLowerCase().includes(term) ||
-                p.marcaProducto?.toLowerCase().includes(term)
-            )
-            .slice(0, 8)
-    }, [catalog, term])
+    const suggestions = useMemo(() => filtrarCatalogo(catalog, porCodigo, term), [catalog, porCodigo, term])
 
     useEffect(() => { setActiveIdx(0) }, [term])
 
@@ -228,8 +185,10 @@ function Sales() {
         setLoading(true)
 
         try {
-            let productData = null
-            if (code) {
+            let productData = code ? buscarPorCodigo(porCodigo, code) : null
+            // Solo si el catálogo aún no llegó se pregunta al servidor: 1 lectura
+            // en vez de 0, pero el primer escaneo del día no se queda esperando.
+            if (!productData && code && !catalogoListo) {
                 const q = query(collection(db, 'productos'), where('idProducto', '==', code))
                 const querySnapshot = await getDocs(q)
                 if (!querySnapshot.empty) {
@@ -237,10 +196,7 @@ function Sales() {
                     productData = { ...docSnapshot.data(), id: docSnapshot.id }
                 }
             }
-            if (!productData && picked) {
-                const snap = await getDoc(doc(db, 'productos', picked.id))
-                if (snap.exists()) productData = { ...snap.data(), id: snap.id }
-            }
+            if (!productData && picked) productData = picked
 
             if (!productData) {
                 toast.error('Producto no encontrado', { description: code })
@@ -363,13 +319,7 @@ function Sales() {
         commitCart(snapshot.map((it, i) => i === index ? { ...it, cantidad: newQuantity } : it))
     }
 
-    const calculateProfit = () => {
-        return cart.reduce((total, item) => {
-            const cost = item.precioOriginal || 0
-            const price = getLocalPrice(item)
-            return total + ((price - cost) * item.cantidad)
-        }, 0) - Math.min(descuentoTotal, calculateSubtotal())
-    }
+    const calculateProfit = () => totalesCarrito(cart, descuentoTotal).ganancia
 
     const handleCheckout = async () => {
         if (cart.length === 0) return
@@ -434,10 +384,11 @@ function Sales() {
             batch.set(saleRef, saleData)
 
             // 2. Update Stock for each product
+            // increment(): el servidor resta sobre el valor real, no sobre el
+            // stock que tenía el carrito al escanear (puede ser de otra caja).
             cart.forEach(item => {
                 const productRef = doc(db, 'productos', item.id)
-                const newStock = item.cantidadProducto - item.cantidad
-                batch.update(productRef, { cantidadProducto: newStock })
+                batch.update(productRef, { cantidadProducto: increment(-item.cantidad) })
             })
 
             // 3. Commit Batch
@@ -537,10 +488,11 @@ function Sales() {
             })
 
             // 4. Update Stock for each product (Inventory only)
+            // increment(): el servidor resta sobre el valor real, no sobre el
+            // stock que tenía el carrito al escanear (puede ser de otra caja).
             cart.forEach(item => {
                 const productRef = doc(db, 'productos', item.id)
-                const newStock = item.cantidadProducto - item.cantidad
-                batch.update(productRef, { cantidadProducto: newStock })
+                batch.update(productRef, { cantidadProducto: increment(-item.cantidad) })
             })
 
             // 5. Commit Batch
@@ -574,6 +526,7 @@ function Sales() {
             const { doc: pdf, folio, total } = await generarCotizacion({
                 cart: cartRef.current,
                 precioDe: getLocalPrice,
+                precioListaDe: getListPrice,
                 descuento: descuentoTotal,
                 settings
             })

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { usePersistedState } from '../../hooks/usePersistedState'
-import { collection, getDocs, orderBy, query, where, doc, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore'
+import { collection, getDocs, orderBy, query, where, doc, updateDoc, writeBatch, increment } from 'firebase/firestore'
+import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
+import { descuentoItemsVenta, ventaConDescuento } from '../../lib/descuentos'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Modal } from '../../components/ui/Modal'
@@ -51,9 +53,11 @@ function SalesHistory() {
 
 
     const getLocalPrice = (prod) => Number(prod?.precioVentaLocal ?? prod?.precioProducto ?? 0)
-    // Descuentos por ítem guardados por el POS; ventas antiguas no los traen.
-    const descuentoItems = (sale) => (sale?.productos || []).reduce((acc, p) => acc + (Number(p.descuento) || 0) * (Number(p.cantidad) || 0), 0)
-    const tieneDescuento = (sale) => (sale?.descuentoTotal || 0) > 0 || descuentoItems(sale) > 0
+    // Calienta el catálogo compartido: así restaurar stock no consulta al servidor.
+    useCatalogo()
+
+    const descuentoItems = descuentoItemsVenta
+    const tieneDescuento = ventaConDescuento
 
     // Format date
     const formatDate = (timestamp) => {
@@ -73,9 +77,6 @@ function SalesHistory() {
             try {
                 // Parse selectedDate (YYYY-MM-DD) as local time
                 const [year, month, day] = selectedDate.split('-').map(Number)
-                
-                // Base date from selector
-                const baseDate = new Date(year, month - 1, day)
                 
                 let start = new Date(year, month - 1, day, 0, 0, 0, 0)
                 let end = new Date(year, month - 1, day, 23, 59, 59, 999)
@@ -188,18 +189,10 @@ function SalesHistory() {
             const batch = writeBatch(db)
 
             // 1. Restaurar stock
+            // increment(): suma sobre el stock real del servidor, no sobre una lectura previa.
             for (const prod of saleToDelete.productos) {
-                const q = query(collection(db, 'productos'), where('idProducto', '==', prod.idProducto))
-                const querySnapshot = await getDocs(q)
-                
-                if (!querySnapshot.empty) {
-                    const productDoc = querySnapshot.docs[0]
-                    const currentStock = productDoc.data().cantidadProducto || 0
-                    const productRef = doc(db, 'productos', productDoc.id)
-                    batch.update(productRef, { 
-                        cantidadProducto: currentStock + prod.cantidad 
-                    })
-                }
+                const productRef = await refProductoPorCodigo(prod.idProducto)
+                if (productRef) batch.update(productRef, { cantidadProducto: increment(prod.cantidad) })
             }
 
             // 2. Eliminar venta
@@ -255,17 +248,8 @@ function SalesHistory() {
             const batch = writeBatch(db)
 
             // 1. Restaurar stock (cantidad devuelta)
-            const q = query(collection(db, 'productos'), where('idProducto', '==', productToRemove.idProducto))
-            const querySnapshot = await getDocs(q)
-            
-            if (!querySnapshot.empty) {
-                const productDoc = querySnapshot.docs[0]
-                const currentStock = productDoc.data().cantidadProducto || 0
-                const productRef = doc(db, 'productos', productDoc.id)
-                batch.update(productRef, { 
-                    cantidadProducto: currentStock + qty 
-                })
-            }
+            const productRef = await refProductoPorCodigo(productToRemove.idProducto)
+            if (productRef) batch.update(productRef, { cantidadProducto: increment(qty) })
 
             // 2. Actualizar venta
             const newProducts = [...selectedSale.productos]

@@ -12,25 +12,12 @@ import { PlusCircle, Package, DollarSign, Layers, Image as ImageIcon, Save, Barc
 import { toast } from 'sonner'
 import { cn } from '../../lib/utils'
 import { PRESS } from '../../lib/motion'
-import { TASA_IVA, conIva, desglosar } from '../../lib/iva'
+import { TASA_IVA } from '../../lib/iva'
+import { desdeMargen, margenImplicito, formulaReferencia, indicadores } from '../../lib/precios'
 
-// Los precios en CLP no llevan decimales: 1.333 + 17% = 1.559,61 no es un precio.
-const REDONDEO = 10
-const redondear = (n) => Math.round(n / REDONDEO) * REDONDEO
 const ATAJOS = [20, 30, 40, 50]
 
 const clp = (n) => `$${Math.round(n).toLocaleString('es-CL')}`
-
-/**
- * Precio = (costo neto / (1 − margen)) × IVA. Con margen 40%: costo/0,6 × 1,19.
- * El margen es sobre el NETO (misma definición que el inventario) y el IVA se
- * suma después: aplicarlo al precio final disfrazaría de ganancia una pérdida.
- */
-const desdeMargen = (costo, pct, afecto) => {
-  const m = Number(pct)
-  if (!(costo > 0) || pct === '' || isNaN(m) || m >= 100) return ''
-  return String(redondear(conIva(costo / (1 - m / 100), afecto)))
-}
 
 /**
  * Un precio que se puede escribir de dos formas. El conmutador cambia cuál de
@@ -41,13 +28,7 @@ function PrecioVenta({ label, tone, costo, precio, modo, pct, onModo, onPct, onP
   const venta = Number(precio) || 0
   const hayCosto = costo > 0
   // El IVA se recauda para el fisco: no entra en la ganancia por ningún lado.
-  const { neto, iva } = desglosar(venta, afecto)
-  const ganancia = neto - costo
-  // Recargo sobre el costo: "le gano un 10%" sobre 1.000 → neto 1.100.
-  const markupReal = hayCosto && neto > 0 ? (ganancia / costo) * 100 : null
-  // Margen sobre el neto. Es la definición que usa el inventario.
-  const margenReal = neto > 0 ? (ganancia / neto) * 100 : null
-  const perdida = hayCosto && neto > 0 && neto < costo
+  const { neto, iva, ganancia, markup: markupReal, margen: margenReal, perdida } = indicadores(costo, venta, afecto)
 
   return (
     <div className="space-y-2">
@@ -161,14 +142,10 @@ function PrecioVenta({ label, tone, costo, precio, modo, pct, onModo, onPct, onP
   )
 }
 
-// Referencia fija del negocio, independiente del % elegido abajo.
-const DIVISOR_REF = 0.6
-const IVA_REF = 1.19
-
 function FormulaPrecio({ costo }) {
-  if (!(costo > 0)) return null
-  const neto = Math.ceil(costo / DIVISOR_REF)
-  const precio = Math.ceil(neto * IVA_REF)
+  const ref = formulaReferencia(costo)
+  if (!ref) return null
+  const { neto, precio } = ref
 
   return (
     <div className="rounded-lg px-3 py-2 border border-emerald-500/25 bg-emerald-500/[0.06] text-[11px] tabular-nums space-y-0.5">
@@ -203,6 +180,15 @@ function CreateProducts() {
   const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
   const idRef = useRef(null)
+  const nombreRef = useRef(null)
+
+  // El lector de barras remata con Enter: eso debe saltar al nombre, no enviar
+  // un producto a medio llenar.
+  const enterAlNombre = (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    nombreRef.current?.focus()
+  }
   const [nuevoProducto, setNuevoProducto] = usePersistedState('roncamotors_create_product_draft', {
     nombreProducto: '',
     marcaProducto: '',
@@ -271,11 +257,9 @@ function CreateProducts() {
     if (modo === 'pct') {
       // Al volver a %, el margen arranca en el que ya implica el precio
       // escrito a mano: cambiar de modo no debe mover el precio.
-      const actual = Number(nuevoProducto[`precioVenta${campo}`]) || 0
-      const { neto } = desglosar(actual, afecto)
-      if (costo > 0 && neto > costo) {
-        const pct = (((neto - costo) / neto) * 100).toFixed(0)
-        setGanancia((g) => ({ ...g, [`modo${campo}`]: modo, [`pct${campo}`]: pct }))
+      const pct = margenImplicito(costo, nuevoProducto[`precioVenta${campo}`], afecto)
+      if (pct != null) {
+        setGanancia((g) => ({ ...g, [`modo${campo}`]: modo, [`pct${campo}`]: String(pct) }))
       }
     }
   }
@@ -390,6 +374,7 @@ function CreateProducts() {
                   onChange={handleChange}
                   className="font-mono text-sm bg-slate-950 border-purple-500/30 focus:border-purple-500 h-10"
                   ref={idRef}
+                  onKeyDown={enterAlNombre}
                   autoFocus
                 />
               </div>
@@ -419,6 +404,7 @@ function CreateProducts() {
               <div className="col-span-12">
                 <label className="text-xs font-medium text-slate-300 mb-1.5 block">Nombre del Producto <span className="text-red-400">*</span></label>
                 <Input
+                  ref={nombreRef}
                   name="nombreProducto"
                   placeholder="Ej. iPhone 15 Pro Max"
                   value={nuevoProducto.nombreProducto}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { collection, doc, where, getDoc, getDocs, query, orderBy, Timestamp, writeBatch } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, orderBy, Timestamp, writeBatch, increment } from 'firebase/firestore'
+import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -33,6 +34,7 @@ import { formatCLP, cn } from '../../lib/utils'
 function ClientDetails() {
     const { id } = useParams()
     const navigate = useNavigate()
+    useCatalogo()   // calienta el catálogo: restaurar stock no consulta al servidor
     const [client, setClient] = useState(null)
     const [loading, setLoading] = useState(true)
     const [clientMovements, setClientMovements] = useState([])
@@ -232,17 +234,8 @@ function ClientDetails() {
                 // 4. Restore Stock (only for purchases)
                 if (itemToDelete.products) {
                     for (const prod of itemToDelete.products) {
-                        // Query 'productos' collection by 'idProducto' to find the document ID
-                        const q = query(collection(db, 'productos'), where('idProducto', '==', prod.idProducto))
-                        const querySnapshot = await getDocs(q)
-                        if (!querySnapshot.empty) {
-                            const productDoc = querySnapshot.docs[0]
-                            const currentStock = productDoc.data().cantidadProducto || 0
-                            const productRef = doc(db, 'productos', productDoc.id)
-                            batch.update(productRef, { 
-                                cantidadProducto: currentStock + prod.cantidad 
-                            })
-                        }
+                        const productRef = await refProductoPorCodigo(prod.idProducto)
+                        if (productRef) batch.update(productRef, { cantidadProducto: increment(prod.cantidad) })
                     }
                 }
             } else if (itemToDelete.type === 'payment') {
@@ -300,16 +293,8 @@ function ClientDetails() {
             const batch = writeBatch(db)
 
             // 1. Restore Stock
-            const q = query(collection(db, 'productos'), where('idProducto', '==', product.idProducto))
-            const querySnapshot = await getDocs(q)
-            if (!querySnapshot.empty) {
-                const productDoc = querySnapshot.docs[0]
-                const currentStock = productDoc.data().cantidadProducto || 0
-                const productRef = doc(db, 'productos', productDoc.id)
-                batch.update(productRef, { 
-                    cantidadProducto: currentStock + qty 
-                })
-            }
+            const productRef = await refProductoPorCodigo(product.idProducto)
+            if (productRef) batch.update(productRef, { cantidadProducto: increment(qty) })
 
             // 2. Update Movement
             const newProducts = [...movement.products]
@@ -334,32 +319,7 @@ function ClientDetails() {
                 batch.delete(movementRef)
                 
                 if (movement.saleId) {
-                    const saleRef = doc(db, 'sales', movement.saleId)
-                    batch.delete(saleRef)
-                }
-            } else {
-                const movementRef = doc(db, `clients/${client.id}/movements`, movement.id)
-                batch.update(movementRef, {
-                    products: newProducts,
-                    amount: movement.amount - amountToReduce
-                })
-
-                // Update linked sale if exists
-                if (movement.saleId) {
-                    const saleRef = doc(db, 'sales', movement.saleId)
-                    // We need to fetch the sale to update it properly, but here we can try to assume structure match
-                    // Ideally we fetch, but for batch efficiency we might skip if we trust sync.
-                    // Let's just update totals for now on sale doc, updating products array is harder without reading.
-                    // Actually, let's read the sale doc to be safe if possible, but we are inside a function.
-                    // For now, let's just update the totals on the sale doc to keep financial stats correct.
-                    // Updating the products array inside the sale doc would require reading it first or duplicating logic.
-                    // Given complexity, let's just update the movement and debt, and try to update sale totals.
-                    // NOTE: This might leave sale.products out of sync with movement.products if we don't update it.
-                    // Let's try to update it blindly assuming same index? No, risky.
-                    // Let's just decrement the totalVenta.
-                    // Ideally we should update the products array in sale doc too.
-                    
-                    // Let's do a read inside this try block, it's fine.
+                    // Se lee la venta para mantener su array de productos en sincronía con el movimiento.
                     const saleDocRef = doc(db, 'sales', movement.saleId)
                     const saleSnap = await getDoc(saleDocRef)
                     if (saleSnap.exists()) {
@@ -424,7 +384,6 @@ function ClientDetails() {
     })
 
     const displayData = filteredMovements
-    const isProductView = false
 
     const totalPages = Math.ceil(displayData.length / itemsPerPage)
     const paginatedData = displayData.slice(
@@ -619,7 +578,7 @@ function ClientDetails() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {paginatedData.map((item, idx) => {
+                                {paginatedData.map((item) => {
                                     // Handle Standard View
                                     const mov = item
                                     return (

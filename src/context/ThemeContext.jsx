@@ -1,15 +1,14 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { db } from '../db/firebase'
 import { doc, onSnapshot } from 'firebase/firestore'
+import { NOMBRE_NEGOCIO, LOGO_LOCAL } from '../lib/marca'
 
 const ThemeContext = createContext()
 
+const POR_DEFECTO = { logo: LOGO_LOCAL, primaryColor: '#3b82f6', businessName: NOMBRE_NEGOCIO }
+
 export function ThemeProvider({ children }) {
-    const [settings, setSettings] = useState({
-        logo: '',
-        primaryColor: '#3b82f6',
-        businessName: 'Roncamotors'
-    })
+    const [settings, setSettings] = useState(POR_DEFECTO)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -17,9 +16,14 @@ export function ThemeProvider({ children }) {
         const unsub = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
             if (doc.exists()) {
                 const data = doc.data()
-                setSettings(data)
-                // Apply CSS variable
-                document.documentElement.style.setProperty('--primary-color', data.primaryColor)
+                // Campos vacíos en Firestore no borran la marca local.
+                setSettings({
+                    ...POR_DEFECTO,
+                    ...data,
+                    logo: data.logo || LOGO_LOCAL,
+                    businessName: data.businessName || NOMBRE_NEGOCIO,
+                })
+                if (data.primaryColor) document.documentElement.style.setProperty('--primary-color', data.primaryColor)
             }
             setLoading(false)
         })
@@ -34,4 +38,5 @@ export function ThemeProvider({ children }) {
     )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTheme = () => useContext(ThemeContext)

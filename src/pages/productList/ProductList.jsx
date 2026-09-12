@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { doc, deleteDoc } from 'firebase/firestore'
+import { useCatalogo } from '../../lib/catalogo'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import { Skeleton } from '../../components/ui/Skeleton'
@@ -87,8 +88,9 @@ function Alerta({ k, count, active, onToggle, icon: Icon, tone, label, title, di
 }
 
 function ProductList() {
-  const [productos, setProductos] = useState([])
-  const [loading, setLoading] = useState(true)
+  // Catálogo compartido: 0 lecturas al entrar, y refleja altas/bajas al instante.
+  const { productos, listo } = useCatalogo()
+  const loading = !listo
   const [orden, setOrden] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState(null)
@@ -108,21 +110,6 @@ function ProductList() {
 
   const getLocalPrice = (product) => Number(product?.precioVentaLocal ?? product?.precioProducto ?? 0)
   const getWebPrice = (product) => Number(product?.precioVentaWeb ?? 0)
-
-  const obtenerProductos = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'productos'))
-      const docs = []
-      querySnapshot.forEach((doc) => {
-        docs.push({ ...doc.data(), id: doc.id })
-      })
-      setProductos(docs)
-    } catch (error) {
-      console.error('Error al obtener productos:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   // Rotación: unidades vendidas y última venta por idProducto. Si esta lectura
   // falla, la vista sigue funcionando sin las columnas de rotación.
@@ -152,7 +139,6 @@ function ProductList() {
   }
 
   useEffect(() => {
-    obtenerProductos()
     obtenerRotacion()
   }, [])
 
@@ -187,7 +173,6 @@ function ProductList() {
 
     try {
       await deleteDoc(doc(db, 'productos', productToDelete.id))
-      setProductos(productos.filter(p => p.id !== productToDelete.id))
       toast.success('Producto eliminado correctamente')
     } catch (error) {
       console.error("Error al eliminar producto:", error)

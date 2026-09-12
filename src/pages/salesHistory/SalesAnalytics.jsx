@@ -4,6 +4,28 @@ import { formatCLP } from '../../lib/utils'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { TrendingUp, TrendingDown, DollarSign, ShoppingBag, CreditCard } from 'lucide-react'
 
+function CustomTooltip({ active, payload, label }) {
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-slate-900 border border-white/10 p-3 rounded-lg shadow-xl">
+                <p className="text-white font-medium mb-1">{label}</p>
+                <p className="text-emerald-400 text-sm">
+                    Ventas: {formatCLP(payload[0].value)}
+                </p>
+                {payload[1] && (
+                    <p className="text-cyan-400 text-sm">
+                        Ganancia: {formatCLP(payload[1].value)}
+                    </p>
+                )}
+                <p className="text-slate-400 text-xs mt-1">
+                    {payload[0].payload.count} transacciones
+                </p>
+            </div>
+        )
+    }
+    return null
+}
+
 export function SalesAnalytics({ sales, dateRange }) {
     
     // 1. Calcular KPIs
@@ -31,68 +53,6 @@ export function SalesAnalytics({ sales, dateRange }) {
         }
     }, [sales])
 
-    // 2. Preparar datos para gráficos
-    const chartData = useMemo(() => {
-        if (sales.length === 0) return []
-
-        const dataMap = {}
-
-        sales.forEach(sale => {
-            let key
-            const date = sale.fechaVenta.toDate() // Firestore Timestamp
-
-            if (dateRange === 'day') {
-                // Agrupar por hora (00:00 - 23:00)
-                const hour = date.getHours()
-                key = `${hour.toString().padStart(2, '0')}:00`
-            } else {
-                // Agrupar por día (YYYY-MM-DD)
-                // Usar locale date string para agrupar correctamente
-                key = date.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' })
-            }
-
-            if (!dataMap[key]) {
-                dataMap[key] = { name: key, ventas: 0, ganancia: 0, cantidad: 0 }
-            }
-
-            dataMap[key].ventas += (sale.totalVenta || 0)
-            dataMap[key].ganancia += (sale.totalGanancia || 0)
-            dataMap[key].cantidad += 1
-        })
-
-        // Ordenar datos
-        return Object.values(dataMap).sort((a, b) => {
-            if (dateRange === 'day') {
-                return a.name.localeCompare(b.name)
-            } else {
-                // Para fechas DD/MM, necesitamos un sort un poco más inteligente o asumir que vienen en orden si iteramos fechas
-                // Simple string compare works for DD/MM within same month/year usually, but let's rely on standard sort for now
-                // Actually, if spanning years, DD/MM might not sort correctly numerically.
-                // However, for visualization simple sort is often enough or we can use the timestamp logic.
-                // Let's stick to simple sort for simplicity as keys are unique.
-                return 0 // Recharts might just plot in order of array. Object.values order isn't guaranteed.
-                // Better to sort by the original timestamp min value.
-                // Re-doing the map to keep a sortable value.
-            }
-        }).sort((a, b) => {
-             // Basic alphanumeric sort for keys like "09:00", "10:00" or "01/02", "02/02"
-             // Note: DD/MM format sorts by day first, which is correct for within-month.
-             // For cross-month "28/02" vs "01/03", string sort "01/03" comes before "28/02" which is WRONG.
-             // We need to fix this for date ranges > 1 month.
-             // BUT for now let's leave it simple, or user can fix if they notice issues with long ranges.
-             // Ideally we use a real Date object for sorting.
-             return dateRange === 'day' ? a.name.localeCompare(b.name) : 0 // Rely on insert order if possible or fix later
-        })
-        
-        // Correct sorting strategy:
-        // We should sort by the underlying date value.
-        // Let's re-process sales sorted by date first, then the aggregation will be naturally ordered if we iterate chronologically? 
-        // No, aggregation into map loses order.
-        // Let's just sort the final array.
-        // For day range: "HH:00" sorts correctly.
-        // For other ranges: We need to parse "DD/MM" back or store a sortable key.
-        
-    }, [sales, dateRange])
     
     // Improved Chart Data Logic with Sorting
     const processedChartData = useMemo(() => {
@@ -129,27 +89,6 @@ export function SalesAnalytics({ sales, dateRange }) {
          return Object.values(grouped).sort((a, b) => a.sortKey - b.sortKey)
     }, [sales, dateRange])
 
-    const CustomTooltip = ({ active, payload, label }) => {
-        if (active && payload && payload.length) {
-            return (
-                <div className="bg-slate-900 border border-white/10 p-3 rounded-lg shadow-xl">
-                    <p className="text-white font-medium mb-1">{label}</p>
-                    <p className="text-emerald-400 text-sm">
-                        Ventas: {formatCLP(payload[0].value)}
-                    </p>
-                    {payload[1] && (
-                        <p className="text-cyan-400 text-sm">
-                            Ganancia: {formatCLP(payload[1].value)}
-                        </p>
-                    )}
-                    <p className="text-slate-400 text-xs mt-1">
-                        {payload[0].payload.count} transacciones
-                    </p>
-                </div>
-            )
-        }
-        return null
-    }
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

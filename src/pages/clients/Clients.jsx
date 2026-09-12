@@ -9,15 +9,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Search, Plus, User, Phone, Mail, IdCard, Users, AlertCircle, DollarSign, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCLP, cn } from '../../lib/utils'
-
-// Normaliza a 12.345.678-9; devuelve lo escrito si no alcanza a ser un RUT.
-const formatRut = (raw) => {
-    const limpio = raw.replace(/[^0-9kK]/g, '').toUpperCase()
-    if (limpio.length < 2) return limpio
-    const cuerpo = limpio.slice(0, -1)
-    const dv = limpio.slice(-1)
-    return `${Number(cuerpo).toLocaleString('es-CL')}-${dv}`
-}
+import { formatRut } from '../../lib/rut'
 
 function Clients() {
     const navigate = useNavigate()

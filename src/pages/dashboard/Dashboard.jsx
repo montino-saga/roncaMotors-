@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { collection, getDocs, orderBy, query, where, Timestamp } from 'firebase/firestore'
 import { db } from '../../db/firebase'
+import { useCatalogo } from '../../lib/catalogo'
 import { Card } from '../../components/ui/Card'
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -16,10 +17,11 @@ import { useTheme } from '../../context/ThemeContext'
 
 function Dashboard() {
     const [sales, setSales] = useState([])
-    const [clients, setClients] = useState([])
-    const [products, setProducts] = useState([])
     const [loading, setLoading] = useState(true)
     const { settings } = useTheme()
+    const { productos } = useCatalogo()
+    // Bajo stock (< 5) sale del catálogo compartido: sin lecturas extra por rango.
+    const lowStockCount = productos.filter(p => (p.cantidadProducto || 0) < 5).length
     
     const [metrics, setMetrics] = useState({
         totalCashFlow: 0,
@@ -29,7 +31,6 @@ function Dashboard() {
         totalOrders: 0,
         averageOrderValue: 0,
         profitMargin: 0,
-        lowStockCount: 0
     })
 
     const [chartsData, setChartsData] = useState({
@@ -40,8 +41,8 @@ function Dashboard() {
 
     // Date Filter State
     const [dateRange, setDateRange] = useState('week')
-    const [customStart, setCustomStart] = useState('')
-    const [customEnd, setCustomEnd] = useState('')
+    const [customStart] = useState('')
+    const [customEnd] = useState('')
 
     useEffect(() => {
         const fetchData = async () => {
@@ -90,18 +91,8 @@ function Dashboard() {
                     clientsData.push({ id: doc.id, ...doc.data() })
                 })
 
-                // 3. Fetch Products (Snapshot for Stock)
-                const qProducts = query(collection(db, 'productos'))
-                const productsSnapshot = await getDocs(qProducts)
-                const productsData = []
-                productsSnapshot.forEach((doc) => {
-                    productsData.push({ id: doc.id, ...doc.data() })
-                })
-
                 setSales(salesData)
-                setClients(clientsData)
-                setProducts(productsData)
-                processMetrics(salesData, clientsData, productsData)
+                processMetrics(salesData, clientsData)
             } catch (error) {
                 console.error("Error fetching dashboard data:", error)
             } finally {
@@ -114,7 +105,7 @@ function Dashboard() {
         }
     }, [dateRange, customStart, customEnd])
 
-    const processMetrics = (salesData, clientsData, productsData) => {
+    const processMetrics = (salesData, clientsData) => {
         // --- Financial Metrics ---
         const totalCashFlow = salesData.reduce((acc, curr) => {
             if (curr.tipoPago === 'efectivo' || curr.tipoPago === 'tarjeta' || curr.tipoPago === 'abono' || curr.isAbono) {
@@ -142,9 +133,6 @@ function Dashboard() {
         const totalRevenueVolume = totalCashFlow + totalCreditSales
         const profitMargin = totalRevenueVolume > 0 ? (totalProfit / totalRevenueVolume) * 100 : 0
         
-        // Low Stock (Threshold < 5)
-        const lowStockCount = productsData.filter(p => (p.cantidadProducto || 0) < 5).length
-
         setMetrics({
             totalCashFlow,
             totalCreditSales,
@@ -152,8 +140,7 @@ function Dashboard() {
             totalProfit,
             totalOrders,
             averageOrderValue,
-            profitMargin,
-            lowStockCount
+            profitMargin
         })
 
         // --- Charts Data ---
@@ -330,13 +317,13 @@ function Dashboard() {
 
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className={cn("p-2 rounded-lg", metrics.lowStockCount > 0 ? "bg-orange-500/20 text-orange-400" : "bg-slate-800 text-slate-300")}>
+                        <div className={cn("p-2 rounded-lg", lowStockCount > 0 ? "bg-orange-500/20 text-orange-400" : "bg-slate-800 text-slate-300")}>
                             <AlertCircle className="w-5 h-5" />
                         </div>
                         <div>
                             <p className="text-sm text-slate-400">Stock Bajo</p>
-                            <p className={cn("text-lg font-bold", metrics.lowStockCount > 0 ? "text-orange-400" : "text-white")}>
-                                {metrics.lowStockCount} productos
+                            <p className={cn("text-lg font-bold", lowStockCount > 0 ? "text-orange-400" : "text-white")}>
+                                {lowStockCount} productos
                             </p>
                         </div>
                     </div>

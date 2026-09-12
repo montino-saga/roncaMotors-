@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf'
-import logoUrl from '../assets/roncamotors_logo.jpeg'
-import { TASA_IVA, esAfecto, netoDe } from './iva'
+import { LOGO_LOCAL as logoUrl } from './marca'
+import { TASA_IVA } from './iva'
+import { totalesCotizacion } from './cotizacionTotales'
+import { NOMBRE_NEGOCIO } from './marca'
 
 const MARGEN = 15
 const ANCHO = 210          // A4 vertical, en mm
@@ -46,26 +48,33 @@ const folioDe = (fecha) => {
 const fechaLarga = (d) => d.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
 
 /**
- * @param cart      ítems del carrito ({ nombreProducto, marcaProducto, idProducto, cantidad, ... })
- * @param precioDe  cómo obtener el precio unitario de un ítem
- * @param descuento rebaja en CLP sobre el total (opcional)
- * @param settings  { businessName } del ThemeContext
+ * @param cart          ítems del carrito ({ nombreProducto, marcaProducto, idProducto, cantidad, ... })
+ * @param precioDe      precio unitario cobrado de un ítem (con su descuento)
+ * @param precioListaDe precio unitario de lista (sin descuento); por defecto el mismo
+ * @param descuento     rebaja en CLP sobre el total (opcional)
+ * @param settings      { businessName } del ThemeContext
  */
-export async function generarCotizacion({ cart, precioDe, descuento = 0, settings = {} }) {
+export async function generarCotizacion({ cart, precioDe, precioListaDe = precioDe, descuento = 0, settings = {} }) {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const logo = await cargarLogo()
 
     const ahora = new Date()
     const folio = folioDe(ahora)
     const vence = new Date(ahora.getTime() + VALIDEZ_DIAS * 86_400_000)
-    const negocio = settings.businessName || 'Roncamotors'
+    const negocio = settings.businessName || NOMBRE_NEGOCIO
 
-    // Columnas: x de inicio y alineación. La descripción absorbe el sobrante.
-    const xCodigo = MARGEN
-    const xDesc = MARGEN + 26
-    const xCant = ANCHO - MARGEN - 78
-    const xUnit = ANCHO - MARGEN - 46
+    const t = totalesCotizacion(cart, precioDe, precioListaDe, descuento)
+    const hayDcto = t.descuentos > 0
+
+    // Columnas de derecha a izquierda: la descripción absorbe el sobrante.
+    // La columna DCTO solo existe si hay algún descuento en la cotización.
     const xTotal = ANCHO - MARGEN
+    const xUnit = xTotal - 30
+    const xDcto = hayDcto ? xUnit - 24 : xUnit
+    const xCant = xDcto - 16
+    const xCodigo = MARGEN
+    const xDesc = MARGEN + 24
+    const ALTO_FILA = 9
 
     const cabeceraTabla = (y) => {
         doc.setFillColor(30, 41, 59)
@@ -73,30 +82,34 @@ export async function generarCotizacion({ cart, precioDe, descuento = 0, setting
         doc.setTextColor(255).setFontSize(8).setFont('helvetica', 'bold')
         doc.text('CÓDIGO', xCodigo + 2, y + 5.4)
         doc.text('DESCRIPCIÓN', xDesc, y + 5.4)
-        doc.text('CANT', xCant + 14, y + 5.4, { align: 'right' })
-        doc.text('P. UNIT', xUnit + 26, y + 5.4, { align: 'right' })
+        doc.text('CANT', xCant, y + 5.4, { align: 'right' })
+        if (hayDcto) doc.text('DCTO', xDcto, y + 5.4, { align: 'right' })
+        doc.text('P. UNIT', xUnit, y + 5.4, { align: 'right' })
         doc.text('TOTAL', xTotal - 2, y + 5.4, { align: 'right' })
         return y + 8
     }
 
-    // ---- Cabecera
+    // ---- Cabecera: logo y nombre a la izquierda, en línea; datos a la derecha.
     let y = MARGEN
+    const LOGO = 26
+    let xNombre = MARGEN
     if (logo) {
-        const w = 32
-        doc.addImage(logo.dataUrl, 'JPEG', MARGEN, y, w, w / logo.ratio)
+        doc.addImage(logo.dataUrl, 'JPEG', MARGEN, y, LOGO, LOGO / logo.ratio)
+        xNombre = MARGEN + LOGO + 5
     }
+    doc.setTextColor(15, 23, 42).setFont('helvetica', 'bold').setFontSize(15)
+    doc.text(negocio, xNombre, y + 11)
+    doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(100, 116, 139)
+    doc.text('Repuestos y accesorios', xNombre, y + 16.5)
 
     doc.setTextColor(15, 23, 42).setFont('helvetica', 'bold').setFontSize(20)
-    doc.text('COTIZACIÓN', ANCHO - MARGEN, y + 6, { align: 'right' })
+    doc.text('COTIZACIÓN', ANCHO - MARGEN, y + 8, { align: 'right' })
     doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(100, 116, 139)
-    doc.text(folio, ANCHO - MARGEN, y + 12, { align: 'right' })
-    doc.text(fechaLarga(ahora), ANCHO - MARGEN, y + 17, { align: 'right' })
-    doc.text(`Válida hasta el ${fechaLarga(vence)}`, ANCHO - MARGEN, y + 22, { align: 'right' })
+    doc.text(folio, ANCHO - MARGEN, y + 14, { align: 'right' })
+    doc.text(fechaLarga(ahora), ANCHO - MARGEN, y + 19, { align: 'right' })
+    doc.text(`Válida hasta el ${fechaLarga(vence)}`, ANCHO - MARGEN, y + 24, { align: 'right' })
 
-    doc.setTextColor(15, 23, 42).setFont('helvetica', 'bold').setFontSize(12)
-    doc.text(negocio, MARGEN, y + 30)
-
-    y += 38
+    y += Math.max(LOGO, 26) + 6
     doc.setDrawColor(226, 232, 240).setLineWidth(0.4)
     doc.line(MARGEN, y, ANCHO - MARGEN, y)
     y += 8
@@ -105,16 +118,7 @@ export async function generarCotizacion({ cart, precioDe, descuento = 0, setting
     y = cabeceraTabla(y)
     doc.setFont('helvetica', 'normal').setFontSize(9)
 
-    let total = 0, neto = 0, exentos = 0
-    cart.forEach((item, i) => {
-        const unit = Number(precioDe(item)) || 0
-        const cantidad = Number(item.cantidad) || 0
-        const subtotal = unit * cantidad
-        const afecto = esAfecto(item)
-        total += subtotal
-        neto += netoDe(subtotal, afecto)
-        if (!afecto) exentos += 1
-
+    t.filas.forEach((f, i) => {
         // Salto de página conservando la cabecera de la tabla.
         if (y > ALTO - 48) {
             doc.addPage()
@@ -124,73 +128,90 @@ export async function generarCotizacion({ cart, precioDe, descuento = 0, setting
 
         if (i % 2 === 0) {
             doc.setFillColor(FONDO_FILA, 248, 250)
-            doc.rect(MARGEN, y, ANCHO - MARGEN * 2, 9, 'F')
+            doc.rect(MARGEN, y, ANCHO - MARGEN * 2, ALTO_FILA, 'F')
         }
 
-        const nombre = item.nombreProducto || 'Producto'
-        const marca = item.marcaProducto ? ` · ${item.marcaProducto}` : ''
+        const nombre = f.item.nombreProducto || 'Producto'
+        const marca = f.item.marcaProducto && f.item.marcaProducto !== nombre ? ` · ${f.item.marcaProducto}` : ''
         // El ancho de la descripción es fijo: hay que recortar, no desbordar.
-        const desc = doc.splitTextToSize(nombre + marca, xCant - xDesc - 4)[0]
+        const desc = doc.splitTextToSize(nombre + marca, xCant - 16 - xDesc)[0]
 
         doc.setTextColor(100, 116, 139).setFontSize(7.5)
-        doc.text(String(item.idProducto || '—'), xCodigo + 2, y + 5.8)
+        doc.text(String(f.item.idProducto || '—'), xCodigo + 2, y + 5.8)
         doc.setTextColor(15, 23, 42).setFontSize(9)
         doc.text(desc, xDesc, y + 5.8)
-        doc.text(String(cantidad), xCant + 14, y + 5.8, { align: 'right' })
-        doc.text(clp(unit), xUnit + 26, y + 5.8, { align: 'right' })
+        doc.text(String(f.cantidad), xCant, y + 5.8, { align: 'right' })
+        if (hayDcto) {
+            if (f.dctoUnit > 0) {
+                doc.setTextColor(180, 83, 9)
+                doc.text(`-${clp(f.dctoUnit)}`, xDcto, y + 5.8, { align: 'right' })
+                doc.setTextColor(15, 23, 42)
+            } else {
+                doc.setTextColor(148, 163, 184)
+                doc.text('—', xDcto, y + 5.8, { align: 'right' })
+                doc.setTextColor(15, 23, 42)
+            }
+        }
+        if (f.dctoUnit > 0) {
+            // Precio de lista tachado sobre el cobrado.
+            doc.setFontSize(6.5).setTextColor(148, 163, 184)
+            const txt = clp(f.unitLista)
+            const w = doc.getTextWidth(txt)
+            doc.text(txt, xUnit, y + 2.9, { align: 'right' })
+            doc.setDrawColor(148, 163, 184).setLineWidth(0.3)
+            doc.line(xUnit - w, y + 2.1, xUnit, y + 2.1)
+            doc.setFontSize(9).setTextColor(15, 23, 42)
+            doc.text(clp(f.unit), xUnit, y + 6.6, { align: 'right' })
+        } else {
+            doc.text(clp(f.unit), xUnit, y + 5.8, { align: 'right' })
+        }
         doc.setFont('helvetica', 'bold')
-        doc.text(clp(subtotal), xTotal - 2, y + 5.8, { align: 'right' })
+        doc.text(clp(f.subtotal), xTotal - 2, y + 5.8, { align: 'right' })
         doc.setFont('helvetica', 'normal')
 
-        y += 9
+        y += ALTO_FILA
     })
 
-    // El descuento global rebaja neto e IVA a prorrata: el IVA se declara
-    // sobre lo efectivamente cobrado.
-    const subtotal = total
-    const rebaja = Math.min(Math.max(0, Number(descuento) || 0), subtotal)
-    if (rebaja > 0 && subtotal > 0) {
-        neto = neto * (1 - rebaja / subtotal)
-        total = subtotal - rebaja
+    // ---- Totales
+    const lineas = []
+    if (hayDcto) {
+        lineas.push(['Subtotal', clp(t.subtotalLista)])
+        if (t.descuentoItems > 0) lineas.push(['Descuento por producto', `-${clp(t.descuentoItems)}`, 'dcto'])
+        if (t.descuentoTotal > 0) lineas.push(['Descuento al total', `-${clp(t.descuentoTotal)}`, 'dcto'])
     }
-    neto = Math.round(neto)
-    const iva = Math.round(total) - neto
+    lineas.push(['Neto', clp(t.neto)])
+    lineas.push([`IVA ${TASA_IVA}%`, clp(t.iva)])
 
-    // ---- Totales, con el IVA desglosado
+    const altoCaja = lineas.length * 6 + 4 + 13
     y += 4
-    if (y > ALTO - (rebaja > 0 ? 72 : 60)) { doc.addPage(); y = MARGEN }
+    if (y > ALTO - altoCaja - 20) { doc.addPage(); y = MARGEN }
 
-    const xCaja = ANCHO - MARGEN - 78
-    doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(71, 85, 105)
-    if (rebaja > 0) {
-        doc.text('Subtotal', xCaja + 4, y + 5)
-        doc.text(clp(subtotal), xTotal - 3, y + 5, { align: 'right' })
-        doc.text('Descuento', xCaja + 4, y + 11)
-        doc.text(`-${clp(rebaja)}`, xTotal - 3, y + 11, { align: 'right' })
-        y += 12
-    }
-    doc.text('Neto', xCaja + 4, y + 5)
-    doc.text(clp(neto), xTotal - 3, y + 5, { align: 'right' })
-    doc.text(`IVA ${TASA_IVA}%`, xCaja + 4, y + 11)
-    doc.text(clp(iva), xTotal - 3, y + 11, { align: 'right' })
-    if (exentos > 0) {
-        doc.setFontSize(7).setTextColor(148, 163, 184)
-        doc.text(`(${exentos} ${exentos === 1 ? 'ítem exento' : 'ítems exentos'})`, xCaja + 4, y + 15.5)
-        doc.setFontSize(9)
-    }
-    y += exentos > 0 ? 19 : 15
+    const ANCHO_CAJA = 84
+    const xCaja = ANCHO - MARGEN - ANCHO_CAJA
+    doc.setFont('helvetica', 'normal').setFontSize(9)
+    lineas.forEach(([label, valor, tipo]) => {
+        doc.setTextColor(...(tipo === 'dcto' ? [180, 83, 9] : [71, 85, 105]))
+        doc.text(label, xCaja + 4, y + 5)
+        doc.text(valor, xTotal - 3, y + 5, { align: 'right' })
+        y += 6
+    })
+    y += 3
 
     doc.setFillColor(15, 23, 42)
-    doc.rect(xCaja, y, 78, 13, 'F')
+    doc.rect(xCaja, y, ANCHO_CAJA, 13, 'F')
     doc.setTextColor(255).setFont('helvetica', 'bold')
     doc.setFontSize(9).text('TOTAL', xCaja + 4, y + 8.2)
-    doc.setFontSize(13).text(clp(total), xTotal - 3, y + 8.6, { align: 'right' })
+    doc.setFontSize(13).text(clp(t.total), xTotal - 3, y + 8.6, { align: 'right' })
+
+    if (hayDcto) {
+        doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(180, 83, 9)
+        doc.text(`Ahorro total: ${clp(t.descuentos)}`, xTotal - 3, y + 18, { align: 'right' })
+    }
 
     // ---- Pie
     doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(148, 163, 184)
-    const unidades = cart.reduce((a, it) => a + (Number(it.cantidad) || 0), 0)
     doc.text(
-        `${cart.length} ${cart.length === 1 ? 'producto' : 'productos'} · ${unidades} ${unidades === 1 ? 'unidad' : 'unidades'}`,
+        `${cart.length} ${cart.length === 1 ? 'producto' : 'productos'} · ${t.unidades} ${t.unidades === 1 ? 'unidad' : 'unidades'}`,
         MARGEN, y + 8
     )
     doc.text(
@@ -205,7 +226,7 @@ export async function generarCotizacion({ cart, precioDe, descuento = 0, setting
         doc.text(`${p} / ${paginas}`, ANCHO - MARGEN, ALTO - 12, { align: 'right' })
     }
 
-    return { doc, folio, total, neto, iva }
+    return { doc, folio, total: t.total, neto: t.neto, iva: t.iva, descuentos: t.descuentos }
 }
 
 /**
