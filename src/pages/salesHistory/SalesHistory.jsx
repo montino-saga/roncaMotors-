@@ -528,6 +528,7 @@ function SalesHistory() {
                                             <th className="px-4 py-3 font-medium text-slate-300 text-sm">Cliente</th>
                                             <th className="px-4 py-3 font-medium text-slate-300 text-sm">Items</th>
                                             <th className="px-4 py-3 font-medium text-slate-300 text-sm">Pago</th>
+                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right hidden md:table-cell">Descuento</th>
                                             <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Total</th>
                                             <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Acciones</th>
                                         </tr>
@@ -535,7 +536,7 @@ function SalesHistory() {
                                     <tbody className="divide-y divide-white/5">
                                         {filteredSales.length === 0 ? (
                                             <tr>
-                                                <td colSpan="6" className="px-4 py-8 text-center text-slate-500">
+                                                <td colSpan="8" className="px-4 py-8 text-center text-slate-500">
                                                     {searchTerm ? 'No se encontraron resultados para tu búsqueda' : 'No se encontraron ventas para este período'}
                                                 </td>
                                             </tr>
@@ -585,20 +586,24 @@ function SalesHistory() {
                                                             {sale.tipoPago}
                                                         </span>
                                                     </td>
-                                                    <td className="px-4 py-3 font-bold text-emerald-400 text-right">
-                                                        <span className="inline-flex items-center justify-end gap-2">
-                                                            {tieneDescuento(sale) && (
-                                                                <span
-                                                                    title={`Descuento −${formatCLP((sale.descuentoTotal || 0) + descuentoItems(sale))}`}
-                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium
-                                                                               bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                                                                >
-                                                                    <Percent className="w-3 h-3" />
-                                                                    −{formatCLP((sale.descuentoTotal || 0) + descuentoItems(sale))}
-                                                                </span>
-                                                            )}
-                                                            {formatCLP(sale.totalVenta)}
-                                                        </span>
+                                                    <td className="px-4 py-3 text-right tabular-nums hidden md:table-cell">
+                                                        {tieneDescuento(sale) ? (
+                                                            <span
+                                                                title={(sale.descuentoTotal || 0) > 0 && descuentoItems(sale) > 0
+                                                                    ? `Por producto −${formatCLP(descuentoItems(sale))} · al total −${formatCLP(sale.descuentoTotal)}`
+                                                                    : (sale.descuentoTotal || 0) > 0 ? 'Descuento al total' : 'Descuento por producto'}
+                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
+                                                                           bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                                                            >
+                                                                <Percent className="w-3 h-3" />
+                                                                −{formatCLP((sale.descuentoTotal || 0) + descuentoItems(sale))}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-600">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-bold text-emerald-400 text-right tabular-nums">
+                                                        {formatCLP(sale.totalVenta)}
                                                     </td>
                                                     <td className="px-4 py-3 text-right">
                                                         <div className="flex items-center justify-end gap-2">
