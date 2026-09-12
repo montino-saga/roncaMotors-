@@ -16,15 +16,16 @@ const clp = (n) => `$${Math.round(Number(n) || 0).toLocaleString('es-CL')}`
  * El logo original pesa 231 KB. Embeberlo tal cual en cada cotización es
  * absurdo para un sello de 32 mm, así que se reescala una vez y se cachea.
  */
-let logoCache
-async function cargarLogo() {
-    if (logoCache !== undefined) return logoCache
+const logoCache = new Map()
+async function cargarLogo(src = logoUrl) {
+    if (logoCache.has(src)) return logoCache.get(src)
+    let resultado = null   // sin logo la cotización sigue saliendo
     try {
         const img = await new Promise((resolve, reject) => {
             const el = new Image()
             el.onload = () => resolve(el)
             el.onerror = reject
-            el.src = logoUrl
+            el.src = src
         })
         const ancho = 400
         const alto = Math.round(img.height * (ancho / img.width))
@@ -32,11 +33,10 @@ async function cargarLogo() {
         canvas.width = ancho
         canvas.height = alto
         canvas.getContext('2d').drawImage(img, 0, 0, ancho, alto)
-        logoCache = { dataUrl: canvas.toDataURL('image/jpeg', 0.82), ratio: img.width / img.height }
-    } catch {
-        logoCache = null   // sin logo la cotización sigue saliendo
-    }
-    return logoCache
+        resultado = { dataUrl: canvas.toDataURL('image/jpeg', 0.82), ratio: img.width / img.height }
+    } catch { /* logo roto o sin CORS: se omite */ }
+    logoCache.set(src, resultado)
+    return resultado
 }
 
 const folioDe = (fecha) => {
@@ -56,12 +56,21 @@ const fechaLarga = (d) => d.toLocaleDateString('es-CL', { day: 'numeric', month:
  */
 export async function generarCotizacion({ cart, precioDe, precioListaDe = precioDe, descuento = 0, settings = {} }) {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-    const logo = await cargarLogo()
+    const logo = await cargarLogo(settings.logo || logoUrl)
 
     const ahora = new Date()
     const folio = folioDe(ahora)
-    const vence = new Date(ahora.getTime() + VALIDEZ_DIAS * 86_400_000)
+    const validez = Number(settings.validezDias) > 0 ? Number(settings.validezDias) : VALIDEZ_DIAS
+    const vence = new Date(ahora.getTime() + validez * 86_400_000)
     const negocio = settings.businessName || NOMBRE_NEGOCIO
+    // Líneas de identificación bajo el nombre; solo las que tengan dato.
+    const datosEmpresa = [
+        settings.giro ?? 'Repuestos y accesorios',
+        settings.rut && `RUT ${settings.rut}`,
+        settings.direccion,
+        [settings.telefono, settings.email].filter(Boolean).join(' · '),
+        settings.web,
+    ].filter(Boolean)
 
     const t = totalesCotizacion(cart, precioDe, precioListaDe, descuento)
     const hayDcto = t.descuentos > 0
@@ -100,7 +109,8 @@ export async function generarCotizacion({ cart, precioDe, precioListaDe = precio
     doc.setTextColor(15, 23, 42).setFont('helvetica', 'bold').setFontSize(15)
     doc.text(negocio, xNombre, y + 11)
     doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(100, 116, 139)
-    doc.text('Repuestos y accesorios', xNombre, y + 16.5)
+    datosEmpresa.forEach((linea, i) => doc.text(linea, xNombre, y + 16.5 + i * 4.2))
+    const altoIzq = 16.5 + Math.max(datosEmpresa.length - 1, 0) * 4.2
 
     doc.setTextColor(15, 23, 42).setFont('helvetica', 'bold').setFontSize(20)
     doc.text('COTIZACIÓN', ANCHO - MARGEN, y + 8, { align: 'right' })
@@ -109,7 +119,7 @@ export async function generarCotizacion({ cart, precioDe, precioListaDe = precio
     doc.text(fechaLarga(ahora), ANCHO - MARGEN, y + 19, { align: 'right' })
     doc.text(`Válida hasta el ${fechaLarga(vence)}`, ANCHO - MARGEN, y + 24, { align: 'right' })
 
-    y += Math.max(LOGO, 26) + 6
+    y += Math.max(LOGO / (logo?.ratio || 1), altoIzq, 26) + 6
     doc.setDrawColor(226, 232, 240).setLineWidth(0.4)
     doc.line(MARGEN, y, ANCHO - MARGEN, y)
     y += 8
@@ -214,10 +224,10 @@ export async function generarCotizacion({ cart, precioDe, precioListaDe = precio
         `${cart.length} ${cart.length === 1 ? 'producto' : 'productos'} · ${t.unidades} ${t.unidades === 1 ? 'unidad' : 'unidades'}`,
         MARGEN, y + 8
     )
-    doc.text(
-        'Los precios pueden variar sin previo aviso una vez vencida la cotización. Sujeto a disponibilidad de stock.',
-        MARGEN, ALTO - 12
-    )
+    const pie = settings.piePagina?.trim()
+        || 'Los precios pueden variar sin previo aviso una vez vencida la cotización. Sujeto a disponibilidad de stock.'
+    const lineasPie = doc.splitTextToSize(pie, ANCHO - MARGEN * 2 - 20)
+    lineasPie.forEach((l, i) => doc.text(l, MARGEN, ALTO - 12 - (lineasPie.length - 1 - i) * 3.6))
 
     const paginas = doc.getNumberOfPages()
     for (let p = 1; p <= paginas; p++) {

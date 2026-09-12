@@ -5,7 +5,11 @@ import { NOMBRE_NEGOCIO, LOGO_LOCAL } from '../lib/marca'
 
 const ThemeContext = createContext()
 
-const POR_DEFECTO = { logo: LOGO_LOCAL, primaryColor: '#3b82f6', businessName: NOMBRE_NEGOCIO }
+const POR_DEFECTO = {
+    logo: LOGO_LOCAL, primaryColor: '#3b82f6', businessName: NOMBRE_NEGOCIO,
+    giro: 'Repuestos y accesorios', rut: '', direccion: '', telefono: '', email: '', web: '',
+    validezDias: 15, piePagina: '',
+}
 
 export function ThemeProvider({ children }) {
     const [settings, setSettings] = useState(POR_DEFECTO)
