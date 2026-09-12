@@ -96,6 +96,11 @@ class PrinterService {
             }
 
             await this.send("--------------------------------\n");
+            if (saleData.descuentoTotal > 0) {
+                const fmt = (n) => new Intl.NumberFormat('es-CL').format(n);
+                await this.send(`Subtotal: ${fmt(saleData.subtotal)}\n`);
+                await this.send(`Descuento: -${fmt(saleData.descuentoTotal)}\n`);
+            }
             await this.bold(true);
             const total = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(saleData.totalVenta);
             await this.send(`TOTAL: ${total}\n`);

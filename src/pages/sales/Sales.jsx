@@ -1,12 +1,13 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { usePersistedState } from '../../hooks/usePersistedState'
-import { collection, getDocs, query, where, writeBatch, doc, Timestamp, updateDoc, orderBy } from 'firebase/firestore'
+import { collection, getDocs, getDoc, query, where, writeBatch, doc, Timestamp, updateDoc, orderBy } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
-import { Search, Trash2, ShoppingCart, CreditCard, Banknote, User, Package, Minus, Plus, AlertTriangle, FileText } from 'lucide-react'
+import { CurrencyInput } from '../../components/ui/CurrencyInput'
+import { Search, Trash2, ShoppingCart, CreditCard, Banknote, User, Package, Minus, Plus, AlertTriangle, FileText, Percent } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { SPRING, PRESS } from '../../lib/motion'
 import { toast } from 'sonner'
@@ -20,6 +21,8 @@ function Sales() {
     const [cart, setCart] = usePersistedState('roncamotors_pos_cart', [])
     const [productId, setProductId] = useState('')
     const [loading, setLoading] = useState(false)
+    const [catalog, setCatalog] = useState([])
+    const [activeIdx, setActiveIdx] = useState(0)
     const [processing, setProcessing] = useState(false)
     const [paymentType, setPaymentType] = usePersistedState('roncamotors_pos_payment_type', 'efectivo')
     const [isPrinterConnected, setIsPrinterConnected] = useState(false)
@@ -48,7 +51,115 @@ function Sales() {
         // autoConnect() // Uncomment if auto-connect is desired behavior
     }, [])
 
-    const getLocalPrice = (item) => Number(item?.precioVentaLocal ?? item?.precioProducto ?? 0)
+    const getListPrice = (item) => Number(item?.precioVentaLocal ?? item?.precioProducto ?? 0)
+    // Un descuento vive en el ítem del carrito como precio unitario final, así
+    // total, ganancia, boleta y cotización lo heredan sin tocar nada más.
+    const getLocalPrice = (item) => item?.precioDescuento != null ? Number(item.precioDescuento) : getListPrice(item)
+
+    // Descuento al total, aparte de los de cada ítem. Se guarda en CLP, no en %,
+    // porque el vendedor pacta "te lo dejo en 10.000", no "un 7,3%".
+    const [descuentoTotal, setDescuentoTotal] = usePersistedState('roncamotors_pos_discount', 0)
+
+    const calculateSubtotal = () => cart.reduce((total, item) => total + (getLocalPrice(item) * item.cantidad), 0)
+    const calculateTotal = () => Math.max(0, calculateSubtotal() - descuentoTotal)
+
+    // Discount Modal State: índice del ítem, o 'total' para el carrito completo.
+    const [discountIdx, setDiscountIdx] = useState(null)
+    const [discountMode, setDiscountMode] = useState('pct')
+    const [discountValue, setDiscountValue] = useState('')
+    const esTotal = discountIdx === 'total'
+    const discountItem = typeof discountIdx === 'number' ? cart[discountIdx] : null
+    const discountOpen = esTotal || !!discountItem
+    // Precio de referencia sobre el que se descuenta.
+    const discountBase = esTotal ? calculateSubtotal() : discountItem ? getListPrice(discountItem) : 0
+    const discountActual = esTotal ? descuentoTotal > 0 : discountItem?.precioDescuento != null
+    const discountPreview = (() => {
+        if (!discountOpen) return null
+        const v = Number(discountValue)
+        if (discountValue === '' || isNaN(v)) return null
+        if (discountMode === 'pct') {
+            if (v < 0 || v > 100) return null
+            return Math.round(discountBase * (1 - v / 100))
+        }
+        return v >= 0 && v <= discountBase ? v : null
+    })()
+
+    const openDiscount = (target) => {
+        setDiscountIdx(target)
+        const actual = target === 'total'
+            ? (descuentoTotal > 0 ? calculateSubtotal() - descuentoTotal : null)
+            : cart[target]?.precioDescuento ?? null
+        if (actual != null) {
+            setDiscountMode('precio')
+            setDiscountValue(String(actual))
+        } else {
+            setDiscountMode('pct')
+            setDiscountValue('')
+        }
+    }
+
+    const applyDiscount = (e) => {
+        e.preventDefault()
+        if (discountPreview == null || !discountOpen) return
+        if (esTotal) {
+            setDescuentoTotal(discountBase - discountPreview)
+        } else {
+            commitCart(cartRef.current.map((item, i) => {
+                if (i !== discountIdx) return item
+                if (discountPreview >= getListPrice(item)) {
+                    const { precioDescuento: _omit, ...rest } = item
+                    return rest
+                }
+                return { ...item, precioDescuento: discountPreview }
+            }))
+        }
+        setDiscountIdx(null)
+    }
+
+    const clearDiscount = () => {
+        if (esTotal) {
+            setDescuentoTotal(0)
+        } else {
+            commitCart(cartRef.current.map((item, i) => {
+                if (i !== discountIdx) return item
+                const { precioDescuento: _omit, ...rest } = item
+                return rest
+            }))
+        }
+        setDiscountIdx(null)
+    }
+
+    // Sin carrito no hay a qué descontar; y si el carrito baja del descuento,
+    // se recorta en vez de dejar un total negativo escondido.
+    useEffect(() => {
+        if (!cart.length && descuentoTotal) setDescuentoTotal(0)
+        else if (descuentoTotal > calculateSubtotal()) setDescuentoTotal(calculateSubtotal())
+    }, [cart]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Firestore no busca por subcadena: el catálogo vive en memoria y se filtra
+    // aquí. El stock se relee del documento al agregar, así que da igual que
+    // esta copia envejezca durante la sesión.
+    useEffect(() => {
+        getDocs(collection(db, 'productos'))
+            .then(snap => setCatalog(snap.docs.map(d => ({ ...d.data(), id: d.id }))))
+            .catch(err => console.error('Error cargando catálogo:', err))
+    }, [])
+
+    const term = productId.trim().toLowerCase()
+    const suggestions = useMemo(() => {
+        if (term.length < 2) return []
+        // Coincidencia exacta de código = escaneo: no distraer con lista.
+        if (catalog.some(p => p.idProducto?.toLowerCase() === term)) return []
+        return catalog
+            .filter(p =>
+                p.nombreProducto?.toLowerCase().includes(term) ||
+                p.idProducto?.toLowerCase().includes(term) ||
+                p.marcaProducto?.toLowerCase().includes(term)
+            )
+            .slice(0, 8)
+    }, [catalog, term])
+
+    useEffect(() => { setActiveIdx(0) }, [term])
 
     // Stock Adjustment Modal State
     const [isStockModalOpen, setIsStockModalOpen] = useState(false)
@@ -67,10 +178,10 @@ function Sales() {
 
     // Focus input on mount and after adding product
     useEffect(() => {
-        if (!isStockModalOpen && !isDebtModalOpen) {
+        if (!isStockModalOpen && !isDebtModalOpen && !discountOpen) {
             inputRef.current?.focus()
         }
-    }, [cart, isStockModalOpen, isDebtModalOpen])
+    }, [cart, isStockModalOpen, isDebtModalOpen, discountOpen])
 
     // Escanear algo que cae fuera de la vista no confirma nada.
     useEffect(() => {
@@ -79,11 +190,37 @@ function Sales() {
         el.scrollTo({ top: el.scrollHeight, behavior: reduce ? 'auto' : 'smooth' })
     }, [cart.length, reduce])
 
-    const addToCart = async (e) => {
-        e.preventDefault()
-        const code = productId.trim()
-        if (!code) return
+    const pushToCart = (productData) => {
+        const current = cartRef.current
+        const existingItemIndex = current.findIndex(item => item.idProducto === productData.idProducto)
 
+        if (existingItemIndex >= 0) {
+            if (current[existingItemIndex].cantidad + 1 > productData.cantidadProducto) {
+                sounds.playError()
+                setStockReason('insuficiente')
+                setPendingProduct(productData)
+                setNewStockValue(productData.cantidadProducto.toString())
+                setIsStockModalOpen(true)
+                return
+            }
+            commitCart(current.map((item, i) =>
+                i === existingItemIndex ? { ...item, cantidad: item.cantidad + 1 } : item
+            ))
+        } else {
+            if (productData.cantidadProducto < 1) {
+                sounds.playError()
+                setStockReason('agotado')
+                setPendingProduct(productData)
+                setNewStockValue('')
+                setIsStockModalOpen(true)
+                return
+            }
+            commitCart([...current, { ...productData, cantidad: 1 }])
+        }
+    }
+
+    // `code` es el escaneo/tecleo; `picked` la sugerencia elegida (si la hay).
+    const addProduct = async (code, picked) => {
         // El evento causal es el escaneo, no la respuesta de Firestore: el
         // acuse suena ahora y la caja queda libre para el siguiente código.
         sounds.playScan()
@@ -91,49 +228,52 @@ function Sales() {
         setLoading(true)
 
         try {
-            const q = query(collection(db, 'productos'), where('idProducto', '==', code))
-            const querySnapshot = await getDocs(q)
+            let productData = null
+            if (code) {
+                const q = query(collection(db, 'productos'), where('idProducto', '==', code))
+                const querySnapshot = await getDocs(q)
+                if (!querySnapshot.empty) {
+                    const docSnapshot = querySnapshot.docs[0]
+                    productData = { ...docSnapshot.data(), id: docSnapshot.id }
+                }
+            }
+            if (!productData && picked) {
+                const snap = await getDoc(doc(db, 'productos', picked.id))
+                if (snap.exists()) productData = { ...snap.data(), id: snap.id }
+            }
 
-            if (querySnapshot.empty) {
+            if (!productData) {
                 toast.error('Producto no encontrado', { description: code })
                 sounds.playError()
                 return
             }
-
-            const docSnapshot = querySnapshot.docs[0]
-            const productData = { ...docSnapshot.data(), id: docSnapshot.id }
-            const current = cartRef.current
-            const existingItemIndex = current.findIndex(item => item.idProducto === productData.idProducto)
-
-            if (existingItemIndex >= 0) {
-                if (current[existingItemIndex].cantidad + 1 > productData.cantidadProducto) {
-                    sounds.playError()
-                    setStockReason('insuficiente')
-                    setPendingProduct(productData)
-                    setNewStockValue(productData.cantidadProducto.toString())
-                    setIsStockModalOpen(true)
-                    return
-                }
-                commitCart(current.map((item, i) =>
-                    i === existingItemIndex ? { ...item, cantidad: item.cantidad + 1 } : item
-                ))
-            } else {
-                if (productData.cantidadProducto < 1) {
-                    sounds.playError()
-                    setStockReason('agotado')
-                    setPendingProduct(productData)
-                    setNewStockValue('')
-                    setIsStockModalOpen(true)
-                    return
-                }
-                commitCart([...current, { ...productData, cantidad: 1 }])
-            }
+            pushToCart(productData)
         } catch (error) {
             console.error("Error searching product:", error)
             toast.error('Error al buscar producto')
             sounds.playError()
         } finally {
             setLoading(false)
+        }
+    }
+
+    const addToCart = (e) => {
+        e.preventDefault()
+        const code = productId.trim()
+        if (!code) return
+        addProduct(code, suggestions[activeIdx] ?? suggestions[0])
+    }
+
+    const onSearchKeyDown = (e) => {
+        if (!suggestions.length) return
+        if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            setActiveIdx(i => (i + 1) % suggestions.length)
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            setActiveIdx(i => (i - 1 + suggestions.length) % suggestions.length)
+        } else if (e.key === 'Escape') {
+            setProductId('')
         }
     }
 
@@ -223,16 +363,12 @@ function Sales() {
         commitCart(snapshot.map((it, i) => i === index ? { ...it, cantidad: newQuantity } : it))
     }
 
-    const calculateTotal = () => {
-        return cart.reduce((total, item) => total + (getLocalPrice(item) * item.cantidad), 0)
-    }
-
     const calculateProfit = () => {
         return cart.reduce((total, item) => {
             const cost = item.precioOriginal || 0
             const price = getLocalPrice(item)
             return total + ((price - cost) * item.cantidad)
-        }, 0)
+        }, 0) - Math.min(descuentoTotal, calculateSubtotal())
     }
 
     const handleCheckout = async () => {
@@ -281,6 +417,8 @@ function Sales() {
                     marcaProducto: item.marcaProducto || '',
                     categoriaProducto: item.categoriaProducto || '',
                     precioVentaLocal: Number(getLocalPrice(item)),
+                    precioLista: Number(getListPrice(item)),
+                    descuento: Number(getListPrice(item) - getLocalPrice(item)),
                     precioVentaWeb: Number(item.precioVentaWeb || 0),
                     precioProducto: Number(getLocalPrice(item)),
                     precioOriginal: Number(item.precioOriginal || 0),
@@ -288,6 +426,8 @@ function Sales() {
                     cantidad: item.cantidad
                 })),
                 tipoPago: paymentType,
+                subtotal: calculateSubtotal(),
+                descuentoTotal: Number(descuentoTotal) || 0,
                 totalVenta: calculateTotal(),
                 totalGanancia: calculateProfit()
             }
@@ -354,6 +494,8 @@ function Sales() {
                     marcaProducto: item.marcaProducto || '',
                     categoriaProducto: item.categoriaProducto || '',
                     precioVentaLocal: Number(getLocalPrice(item)),
+                    precioLista: Number(getListPrice(item)),
+                    descuento: Number(getListPrice(item) - getLocalPrice(item)),
                     precioVentaWeb: Number(item.precioVentaWeb || 0),
                     precioProducto: Number(getLocalPrice(item)),
                     precioOriginal: Number(item.precioOriginal || 0),
@@ -361,6 +503,8 @@ function Sales() {
                     cantidad: item.cantidad
                 })),
                 tipoPago: 'fiado',
+                subtotal: calculateSubtotal(),
+                descuentoTotal: Number(descuentoTotal) || 0,
                 totalVenta: calculateTotal(),
                 totalGanancia: calculateProfit(),
                 idCliente: selectedClientId,
@@ -430,6 +574,7 @@ function Sales() {
             const { doc: pdf, folio, total } = await generarCotizacion({
                 cart: cartRef.current,
                 precioDe: getLocalPrice,
+                descuento: descuentoTotal,
                 settings
             })
             const { via, nombre, url } = await compartirODescargar(pdf, folio, settings.businessName)
@@ -464,6 +609,124 @@ function Sales() {
         // Layout deja de poner barra superior.
         <div className="page-fit flex flex-col sm:flex-row gap-3 md:gap-4">
             {/* Stock Adjustment Modal */}
+            <Modal
+                isOpen={discountOpen}
+                onClose={() => setDiscountIdx(null)}
+                title={esTotal ? 'Descuento al total' : 'Descuento'}
+            >
+                {discountOpen && (
+                    <form className="space-y-4" onSubmit={applyDiscount}>
+                        <p className="text-slate-200">
+                            {esTotal ? (
+                                <>
+                                    <span className="font-semibold text-white">Toda la venta</span>
+                                    <span className="text-slate-400"> · subtotal {formatCLP(discountBase)}</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="font-semibold text-white">{discountItem.nombreProducto}</span>
+                                    <span className="text-slate-400"> · lista {formatCLP(discountBase)} c/u</span>
+                                </>
+                            )}
+                        </p>
+
+                        <div className="flex rounded-lg bg-slate-950 border border-white/10 p-0.5" role="group">
+                            {[['pct', '% de descuento'], ['precio', esTotal ? 'Total final' : 'Precio final c/u']].map(([k, txt]) => (
+                                <button
+                                    key={k}
+                                    type="button"
+                                    onClick={() => { setDiscountMode(k); setDiscountValue('') }}
+                                    aria-pressed={discountMode === k}
+                                    className={cn(
+                                        "flex-1 h-9 text-xs font-medium rounded-md transition-colors", PRESS,
+                                        discountMode === k ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'
+                                    )}
+                                >
+                                    {txt}
+                                </button>
+                            ))}
+                        </div>
+
+                        {discountMode === 'pct' ? (
+                            <div className="space-y-2">
+                                <div className="relative">
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        inputMode="numeric"
+                                        value={discountValue}
+                                        onChange={(e) => setDiscountValue(e.target.value)}
+                                        placeholder="10"
+                                        className="h-12 text-lg pr-10 font-bold"
+                                        autoFocus
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">%</span>
+                                </div>
+                                <div className="flex gap-1.5">
+                                    {[5, 10, 15, 20, 30].map((v) => (
+                                        <button
+                                            key={v}
+                                            type="button"
+                                            onClick={() => setDiscountValue(String(v))}
+                                            className={cn(
+                                                "flex-1 h-8 rounded-md text-xs font-medium transition-colors", PRESS,
+                                                String(v) === discountValue ? 'bg-white/15 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                                            )}
+                                        >
+                                            {v}%
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <CurrencyInput
+                                value={discountValue}
+                                onChange={(e) => setDiscountValue(e.target.value)}
+                                placeholder={formatCLP(discountBase)}
+                                className="h-12 text-lg font-bold"
+                                autoFocus
+                            />
+                        )}
+
+                        <div className="rounded-lg px-3 py-2 border border-white/10 bg-slate-950/50 text-sm tabular-nums">
+                            {discountPreview != null ? (
+                                <>
+                                    <div className="flex justify-between gap-2">
+                                        <span className="text-slate-400">Queda en</span>
+                                        <span className="font-bold text-amber-300">{formatCLP(discountPreview)}{esTotal ? '' : ' c/u'}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-2 mt-1 text-xs text-slate-500">
+                                        <span>
+                                            −{formatCLP(discountBase - discountPreview)} ·
+                                            {' '}{discountBase > 0 ? Math.round((1 - discountPreview / discountBase) * 100) : 0}%
+                                        </span>
+                                        {!esTotal && (
+                                            <span>× {discountItem.cantidad} = {formatCLP(discountPreview * discountItem.cantidad)}</span>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <span className="text-slate-500 text-xs">
+                                    {discountMode === 'pct' ? 'Entre 0 y 100%' : esTotal ? 'Un total menor o igual al subtotal' : 'Un precio menor o igual al de lista'}
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="flex gap-2">
+                            {discountActual && (
+                                <Button type="button" variant="secondary" onClick={clearDiscount} className="flex-1">
+                                    Quitar descuento
+                                </Button>
+                            )}
+                            <Button type="submit" disabled={discountPreview == null} className="flex-1">
+                                Aplicar
+                            </Button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
+
             <Modal
                 isOpen={isStockModalOpen}
                 onClose={() => setIsStockModalOpen(false)}
@@ -611,14 +874,56 @@ function Sales() {
                                 ref={inputRef}
                                 value={productId}
                                 onChange={(e) => setProductId(e.target.value)}
-                                placeholder="Escanear..."
+                                onKeyDown={onSearchKeyDown}
+                                placeholder="Escanear o buscar por nombre..."
                                 className="pl-10 h-12 text-lg"
+                                autoComplete="off"
+                                role="combobox"
+                                aria-expanded={suggestions.length > 0}
+                                aria-controls="pos-sugerencias"
                             />
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                             {loading && (
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full
                                                  border-2 border-white/20 border-t-white/80 animate-spin
                                                  motion-reduce:animate-none" />
+                            )}
+                            {suggestions.length > 0 && (
+                                <ul
+                                    id="pos-sugerencias"
+                                    role="listbox"
+                                    className="absolute left-0 right-0 top-full mt-1 z-20 max-h-72 overflow-y-auto
+                                               rounded-xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/50
+                                               reduce-transparency:bg-slate-950"
+                                >
+                                    {suggestions.map((p, i) => (
+                                        <li
+                                            key={p.id}
+                                            role="option"
+                                            aria-selected={i === activeIdx}
+                                            // mousedown: el click normal llega tras el blur del input.
+                                            onMouseDown={(e) => { e.preventDefault(); addProduct('', p) }}
+                                            onMouseEnter={() => setActiveIdx(i)}
+                                            className={cn(
+                                                "flex items-center justify-between gap-3 px-3 py-2.5 cursor-pointer text-sm",
+                                                i === activeIdx ? "bg-primary/20 text-white" : "text-slate-300 hover:bg-white/5"
+                                            )}
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="font-medium truncate">{p.nombreProducto}</p>
+                                                <p className="text-xs text-slate-400 truncate">
+                                                    {p.idProducto}{p.marcaProducto ? ` · ${p.marcaProducto}` : ''}
+                                                </p>
+                                            </div>
+                                            <div className="text-right shrink-0 tabular-nums">
+                                                <p className="font-semibold text-emerald-400">{formatCLP(getLocalPrice(p))}</p>
+                                                <p className={cn("text-xs", p.cantidadProducto < 1 ? "text-red-400" : "text-slate-400")}>
+                                                    Stock: {p.cantidadProducto ?? 0}
+                                                </p>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
                             )}
                         </div>
                         <Button
@@ -638,10 +943,38 @@ function Sales() {
                                         reduce-transparency:bg-slate-950
                                         flex items-baseline justify-between gap-2 lg:block">
                             <p className="text-slate-300 text-xs lg:text-sm lg:mb-1 tracking-[0.01em] shrink-0">Total a Pagar</p>
-                            <p className="text-2xl lg:text-4xl font-bold text-emerald-400 tracking-[-0.02em] tabular-nums truncate">
-                                {formatCLP(calculateTotal())}
-                            </p>
+                            <div className="text-right lg:text-left min-w-0">
+                                {descuentoTotal > 0 && (
+                                    <p className="text-[11px] text-slate-500 tabular-nums line-through truncate">
+                                        {formatCLP(calculateSubtotal())}
+                                    </p>
+                                )}
+                                <p className={cn("text-2xl lg:text-4xl font-bold tracking-[-0.02em] tabular-nums truncate",
+                                    descuentoTotal > 0 ? "text-amber-300" : "text-emerald-400")}>
+                                    {formatCLP(calculateTotal())}
+                                </p>
+                            </div>
                         </div>
+
+                        <button
+                            type="button"
+                            onClick={() => openDiscount('total')}
+                            disabled={!cart.length}
+                            aria-pressed={descuentoTotal > 0}
+                            className={cn(
+                                "w-full min-h-[52px] lg:min-h-[60px] px-4 flex items-center justify-center gap-2.5 rounded-xl border-2",
+                                "text-base lg:text-lg font-bold transition-colors", PRESS,
+                                "disabled:opacity-30 disabled:pointer-events-none",
+                                descuentoTotal > 0
+                                    ? "bg-amber-500/20 border-amber-500 text-amber-200 shadow-lg shadow-amber-500/10"
+                                    : "bg-amber-500/10 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 hover:border-amber-500"
+                            )}
+                        >
+                            <Percent className="w-5 h-5 lg:w-6 lg:h-6 shrink-0" />
+                            {descuentoTotal > 0
+                                ? `Descuento aplicado: −${formatCLP(descuentoTotal)}`
+                                : 'Aplicar descuento al total'}
+                        </button>
 
                         <div className="grid grid-cols-2 gap-2 lg:gap-3">
                             {[
@@ -790,6 +1123,19 @@ function Sales() {
                                         {/* Estrecho: los controles bajan a su propia línea en lugar
                                             de comprimir el nombre hasta lo ilegible. */}
                                         <div className="flex items-center gap-2 @md:gap-3 w-full @md:w-auto justify-end shrink-0">
+                                            <div className="text-right min-w-[84px] @md:min-w-[104px]">
+                                                <p className="text-[10px] uppercase tracking-wider text-slate-500">Precio c/u</p>
+                                                {item.precioDescuento != null && (
+                                                    <p className="text-[11px] text-slate-500 tabular-nums line-through leading-none">
+                                                        {formatCLP(getListPrice(item))}
+                                                    </p>
+                                                )}
+                                                <p className={cn("font-bold text-base @md:text-xl tabular-nums tracking-[-0.01em]",
+                                                    item.precioDescuento != null ? "text-amber-300" : "text-white")}>
+                                                    {formatCLP(getLocalPrice(item))}
+                                                </p>
+                                            </div>
+
                                             <div className="flex items-center bg-slate-950 rounded-lg border border-white/10 h-10">
                                                 <button
                                                     onClick={() => updateQuantity(index, -1)}
@@ -812,14 +1158,27 @@ function Sales() {
                                                 </button>
                                             </div>
 
-                                            <div className="text-right min-w-[76px] @md:min-w-[88px] ml-auto @md:ml-0">
-                                                <p className="font-bold text-white text-sm @md:text-base tabular-nums tracking-[-0.01em]">
+                                            <div className="text-right min-w-[84px] @md:min-w-[104px]">
+                                                <p className="text-[10px] uppercase tracking-wider text-slate-500">Subtotal</p>
+                                                <p className={cn("font-bold text-base @md:text-xl tabular-nums tracking-[-0.01em]",
+                                                    item.precioDescuento != null ? "text-amber-300" : "text-emerald-400")}>
                                                     {formatCLP(getLocalPrice(item) * item.cantidad)}
                                                 </p>
-                                                <p className="text-[11px] text-slate-500 tabular-nums tracking-[0.01em]">
-                                                    {formatCLP(getLocalPrice(item))} c/u
-                                                </p>
                                             </div>
+
+                                            <button
+                                                onClick={() => openDiscount(index)}
+                                                aria-label={`Descuento para ${item.nombreProducto}`}
+                                                aria-pressed={item.precioDescuento != null}
+                                                className={cn(
+                                                    "h-10 w-12 @md:w-14 grid place-items-center rounded-lg border-2 transition-colors", PRESS,
+                                                    item.precioDescuento != null
+                                                        ? "text-amber-200 bg-amber-500/25 border-amber-500"
+                                                        : "text-amber-300 bg-amber-500/10 border-amber-500/40 hover:bg-amber-500/20 hover:border-amber-500"
+                                                )}
+                                            >
+                                                <Percent className="w-5 h-5 @md:w-6 @md:h-6" />
+                                            </button>
 
                                             {/* Separado del ± : es el vecino destructivo */}
                                             <button

@@ -15,19 +15,20 @@ import { TASA_IVA, conIva, desglosar } from '../../lib/iva'
 // Los precios en CLP no llevan decimales: 1.333 + 17% = 1.559,61 no es un precio.
 const REDONDEO = 10
 const redondear = (n) => Math.round(n / REDONDEO) * REDONDEO
-const ATAJOS = [20, 30, 50, 100]
+const ATAJOS = [20, 30, 40, 50]
 
 const clp = (n) => `$${Math.round(n).toLocaleString('es-CL')}`
 
 /**
- * El recargo va sobre el NETO y el IVA se suma después. Aplicarlo al precio
- * final haría que "gano un 10%" sobre un costo de 1.000 diera 1.100, cuyo neto
- * son 924: una pérdida de 76 pesos disfrazada de ganancia.
+ * Precio = (costo neto / (1 − margen)) × IVA. Con margen 40%: costo/0,6 × 1,19.
+ * El margen es sobre el NETO (misma definición que el inventario) y el IVA se
+ * suma después: aplicarlo al precio final disfrazaría de ganancia una pérdida.
  */
-const desdeMarkup = (costo, pct, afecto) =>
-  costo > 0 && pct !== '' && !isNaN(Number(pct))
-    ? String(redondear(conIva(costo * (1 + Number(pct) / 100), afecto)))
-    : ''
+const desdeMargen = (costo, pct, afecto) => {
+  const m = Number(pct)
+  if (!(costo > 0) || pct === '' || isNaN(m) || m >= 100) return ''
+  return String(redondear(conIva(costo / (1 - m / 100), afecto)))
+}
 
 /**
  * Un precio que se puede escribir de dos formas. El conmutador cambia cuál de
@@ -53,7 +54,7 @@ function PrecioVenta({ label, tone, costo, precio, modo, pct, onModo, onPct, onP
           {label} {required && <span className="text-red-400">*</span>}
         </label>
         <div className="flex rounded-lg bg-slate-950 border border-white/10 p-0.5" role="group">
-          {[['pct', '% sobre costo'], ['fijo', 'Precio fijo']].map(([k, txt]) => (
+          {[['pct', '% margen'], ['fijo', 'Precio fijo']].map(([k, txt]) => (
             <button
               key={k}
               type="button"
@@ -79,10 +80,11 @@ function PrecioVenta({ label, tone, costo, precio, modo, pct, onModo, onPct, onP
             <Input
               type="number"
               min="0"
+              max="99"
               inputMode="numeric"
               value={pct}
               onChange={(e) => onPct(e.target.value)}
-              placeholder="30"
+              placeholder="40"
               className="h-10 pr-8 font-bold"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">%</span>
@@ -149,10 +151,35 @@ function PrecioVenta({ label, tone, costo, precio, modo, pct, onModo, onPct, onP
           </>
         ) : (
           <span className="text-slate-500 text-xs">
-            {hayCosto ? 'Escribe un porcentaje' : 'Ingresa el costo para calcular'}
+            {hayCosto ? 'Escribe un margen menor a 100%' : 'Ingresa el costo para calcular'}
           </span>
         )}
       </div>
+    </div>
+  )
+}
+
+// Referencia fija del negocio, independiente del % elegido abajo.
+const DIVISOR_REF = 0.6
+const IVA_REF = 1.19
+
+function FormulaPrecio({ costo }) {
+  if (!(costo > 0)) return null
+  const neto = Math.ceil(costo / DIVISOR_REF)
+  const precio = Math.ceil(neto * IVA_REF)
+
+  return (
+    <div className="rounded-lg px-3 py-2 border border-emerald-500/25 bg-emerald-500/[0.06] text-[11px] tabular-nums space-y-0.5">
+      <p className="text-slate-400">
+        Fórmula: <span className="text-slate-300">precioVenta = (costo neto ÷ 0,6) × 1,19</span>
+      </p>
+      <p className="text-slate-400">
+        ({clp(costo)} ÷ 0,6) × 1,19 = <span className="text-slate-200">{clp(neto)}</span> × 1,19
+      </p>
+      <p className="flex justify-between gap-2 pt-1 border-t border-emerald-500/20">
+        <span className="text-slate-400">Precio venta</span>
+        <span className="font-bold text-emerald-400">{clp(precio)}</span>
+      </p>
     </div>
   )
 }
@@ -176,7 +203,7 @@ function CreateProducts({ onProductCreated }) {
   // Aparte del borrador del producto: son ayudas de captura, no campos del
   // documento. Mezclarlas haría que `addDoc({...nuevoProducto})` las guardara.
   const [ganancia, setGanancia] = usePersistedState('roncamotors_create_product_ganancia', {
-    modoLocal: 'pct', pctLocal: '30',
+    modoLocal: 'pct', pctLocal: '40',
     modoWeb: 'fijo', pctWeb: ''
   })
 
@@ -197,15 +224,15 @@ function CreateProducts({ onProductCreated }) {
       ...prev,
       precioOriginal: valor,
       precioVentaLocal: ganancia.modoLocal === 'pct'
-        ? desdeMarkup(c, ganancia.pctLocal, afecto) : prev.precioVentaLocal,
+        ? desdeMargen(c, ganancia.pctLocal, afecto) : prev.precioVentaLocal,
       precioVentaWeb: ganancia.modoWeb === 'pct'
-        ? desdeMarkup(c, ganancia.pctWeb, afecto) : prev.precioVentaWeb
+        ? desdeMargen(c, ganancia.pctWeb, afecto) : prev.precioVentaWeb
     }))
   }
 
   const setPct = (campo, valor) => {
     setGanancia((g) => ({ ...g, [`pct${campo}`]: valor }))
-    setNuevoProducto((p) => ({ ...p, [`precioVenta${campo}`]: desdeMarkup(costo, valor, afecto) }))
+    setNuevoProducto((p) => ({ ...p, [`precioVenta${campo}`]: desdeMargen(costo, valor, afecto) }))
   }
 
   // Cambiar el régimen mueve el precio final: la ganancia pactada es la misma
@@ -215,20 +242,21 @@ function CreateProducts({ onProductCreated }) {
       ...p,
       afectoIva: valor,
       precioVentaLocal: ganancia.modoLocal === 'pct'
-        ? desdeMarkup(costo, ganancia.pctLocal, valor) : p.precioVentaLocal,
+        ? desdeMargen(costo, ganancia.pctLocal, valor) : p.precioVentaLocal,
       precioVentaWeb: ganancia.modoWeb === 'pct'
-        ? desdeMarkup(costo, ganancia.pctWeb, valor) : p.precioVentaWeb
+        ? desdeMargen(costo, ganancia.pctWeb, valor) : p.precioVentaWeb
     }))
   }
 
   const setModo = (campo, modo) => {
     setGanancia((g) => ({ ...g, [`modo${campo}`]: modo }))
     if (modo === 'pct') {
-      // Al volver a %, el porcentaje arranca en el que ya implica el precio
+      // Al volver a %, el margen arranca en el que ya implica el precio
       // escrito a mano: cambiar de modo no debe mover el precio.
       const actual = Number(nuevoProducto[`precioVenta${campo}`]) || 0
-      if (costo > 0 && actual > 0) {
-        const pct = (((actual - costo) / costo) * 100).toFixed(0)
+      const { neto } = desglosar(actual, afecto)
+      if (costo > 0 && neto > costo) {
+        const pct = (((neto - costo) / neto) * 100).toFixed(0)
         setGanancia((g) => ({ ...g, [`modo${campo}`]: modo, [`pct${campo}`]: pct }))
       }
     }
@@ -431,6 +459,7 @@ function CreateProducts({ onProductCreated }) {
                   onChange={handleCosto}
                   className="bg-slate-950 h-10 font-medium"
                 />
+                <FormulaPrecio costo={costo} />
               </div>
 
               <div className="space-y-1.5">

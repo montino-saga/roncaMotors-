@@ -48,9 +48,10 @@ const fechaLarga = (d) => d.toLocaleDateString('es-CL', { day: 'numeric', month:
 /**
  * @param cart      ítems del carrito ({ nombreProducto, marcaProducto, idProducto, cantidad, ... })
  * @param precioDe  cómo obtener el precio unitario de un ítem
+ * @param descuento rebaja en CLP sobre el total (opcional)
  * @param settings  { businessName } del ThemeContext
  */
-export async function generarCotizacion({ cart, precioDe, settings = {} }) {
+export async function generarCotizacion({ cart, precioDe, descuento = 0, settings = {} }) {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const logo = await cargarLogo()
 
@@ -144,15 +145,30 @@ export async function generarCotizacion({ cart, precioDe, settings = {} }) {
         y += 9
     })
 
+    // El descuento global rebaja neto e IVA a prorrata: el IVA se declara
+    // sobre lo efectivamente cobrado.
+    const subtotal = total
+    const rebaja = Math.min(Math.max(0, Number(descuento) || 0), subtotal)
+    if (rebaja > 0 && subtotal > 0) {
+        neto = neto * (1 - rebaja / subtotal)
+        total = subtotal - rebaja
+    }
     neto = Math.round(neto)
     const iva = Math.round(total) - neto
 
     // ---- Totales, con el IVA desglosado
     y += 4
-    if (y > ALTO - 60) { doc.addPage(); y = MARGEN }
+    if (y > ALTO - (rebaja > 0 ? 72 : 60)) { doc.addPage(); y = MARGEN }
 
     const xCaja = ANCHO - MARGEN - 78
     doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(71, 85, 105)
+    if (rebaja > 0) {
+        doc.text('Subtotal', xCaja + 4, y + 5)
+        doc.text(clp(subtotal), xTotal - 3, y + 5, { align: 'right' })
+        doc.text('Descuento', xCaja + 4, y + 11)
+        doc.text(`-${clp(rebaja)}`, xTotal - 3, y + 11, { align: 'right' })
+        y += 12
+    }
     doc.text('Neto', xCaja + 4, y + 5)
     doc.text(clp(neto), xTotal - 3, y + 5, { align: 'right' })
     doc.text(`IVA ${TASA_IVA}%`, xCaja + 4, y + 11)

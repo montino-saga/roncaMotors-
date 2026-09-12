@@ -3,12 +3,10 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Solo cuentas autorizadas pueden subir archivos.
+    // Cualquier cuenta autenticada puede subir archivos.
+    // El alta de usuarios se hace a mano en Firebase Auth.
     function esAdmin() {
-      return request.auth != null
-        && request.auth.token.email in [
-          'samuelgajardo003@gmail.com'
-        ];
+      return request.auth != null;
     }
 
     // Imágenes de productos: lectura pública (catálogo web),

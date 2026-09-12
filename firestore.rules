@@ -3,13 +3,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Panel admin: solo cuentas autorizadas explícitamente.
-    // Para agregar otro admin, suma su correo a la lista.
+    // Panel admin: cualquier cuenta autenticada.
+    // El alta de usuarios se hace a mano en Firebase Auth, por eso no hay
+    // whitelist aquí: el registro público debe estar deshabilitado en la consola.
     function esAdmin() {
-      return request.auth != null
-        && request.auth.token.email in [
-          'samuelgajardo003@gmail.com'
-        ];
+      return request.auth != null;
     }
 
     // Validación del pedido web (lo crea la landing pública sin cuenta).
