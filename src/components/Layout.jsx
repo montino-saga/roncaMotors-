@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useSyncExternalStore } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import {
@@ -139,6 +139,21 @@ export function Layout({ children }) {
     const labelOpacity = useTransform(width, [W_SHUT + 24, W_OPEN - 48], [0, 1]);
     const avatarPad = useTransform(width, [W_SHUT, W_OPEN], [6, 14]);
 
+    // El main NO anima su padding: animar layout re-fluye todo {children}
+    // (tablas, charts) en cada frame. El hueco real se fija de golpe —un solo
+    // reflow— y el desplazamiento visible se hace con translateX (compositor).
+    const padLeft = !isDesktop ? 0 : collapsed ? W_SHUT : W_OPEN;
+    const slide = useMotionValue(0);
+    const prevPad = useRef(padLeft);
+    useLayoutEffect(() => {
+        const delta = prevPad.current - padLeft;
+        prevPad.current = padLeft;
+        if (!isDesktop || delta === 0 || reduce) { slide.set(0); return; }
+        slide.set(delta);
+        const controls = animate(slide, 0, SPRING_WIDTH);
+        return () => controls.stop();
+    }, [padLeft, isDesktop, reduce, slide]);
+
     // Drawer móvil: x es la posición real, arrastrable e interrumpible.
     const x = useMotionValue(-DRAWER_W);
     const scrim = useTransform(x, [-DRAWER_W, 0], [0, 1]);
@@ -217,7 +232,7 @@ export function Layout({ children }) {
 
     return (
         <MotionConfig reducedMotion="user">
-            <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-primary/30">
+            <div className="min-h-screen overflow-x-clip bg-slate-950 text-slate-200 font-sans selection:bg-primary/30">
                 {/* Degradados pintados, no desenfocados: un blur-[120px] bajo el
                     backdrop-blur del aside obliga a re-samplear el desenfoque en
                     cada frame. Esto se ve igual y no toca al compositor. */}
@@ -389,7 +404,12 @@ export function Layout({ children }) {
 
                 <motion.div
                     className="relative z-10"
-                    style={{ paddingLeft: isDesktop ? width : 0, contain: "layout" }}
+                    style={{
+                        paddingLeft: padLeft,
+                        x: slide,
+                        willChange: "transform",
+                        contain: "layout paint"
+                    }}
                 >
                     <main className="min-h-dvh px-4 md:px-6 lg:px-8 py-4 pt-[4.5rem] md:pt-4">
                         {children}
