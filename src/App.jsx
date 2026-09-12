@@ -25,7 +25,7 @@ function Panel() {
                     <Route path="/clientes" element={<Clients />} />
                     <Route path="/clientes/:id" element={<ClientDetails />} />
                     <Route path="/productos" element={<ProductList />} />
-                    <Route path="/crear" element={<CreateProducts onProductCreated={() => window.location.href = '/productos'} />} />
+                    <Route path="/crear" element={<CreateProducts />} />
                     <Route path="/editar/:id" element={<EditProduct />} />
                     <Route path="/ventas" element={<Sales />} />
                     <Route path="/historial" element={<SalesHistory />} />

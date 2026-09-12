@@ -1,3 +1,5 @@
+import { useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usePersistedState } from '../../hooks/usePersistedState'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../../db/firebase'
@@ -6,7 +8,7 @@ import { Input } from '../../components/ui/Input'
 import { CurrencyInput } from '../../components/ui/CurrencyInput'
 import { Button } from '../../components/ui/Button'
 import { ImageUpload } from '../../components/ui/ImageUpload'
-import { PlusCircle, Package, DollarSign, Layers, Image as ImageIcon, Save, Barcode } from 'lucide-react'
+import { PlusCircle, Package, DollarSign, Layers, Image as ImageIcon, Save, Barcode, Eraser } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '../../lib/utils'
 import { PRESS } from '../../lib/motion'
@@ -184,7 +186,23 @@ function FormulaPrecio({ costo }) {
   )
 }
 
-function CreateProducts({ onProductCreated }) {
+const PRODUCTO_VACIO = {
+  nombreProducto: '',
+  marcaProducto: '',
+  categoriaProducto: '',
+  precioVentaLocal: '',
+  precioVentaWeb: '',
+  precioOriginal: '',
+  cantidadProducto: '',
+  imagenProducto: '',
+  idProducto: '',
+  afectoIva: true
+}
+
+function CreateProducts() {
+  const navigate = useNavigate()
+  const [saving, setSaving] = useState(false)
+  const idRef = useRef(null)
   const [nuevoProducto, setNuevoProducto] = usePersistedState('roncamotors_create_product_draft', {
     nombreProducto: '',
     marcaProducto: '',
@@ -262,8 +280,21 @@ function CreateProducts({ onProductCreated }) {
     }
   }
 
+  const hayBorrador = Object.entries(nuevoProducto).some(([k, v]) => k !== 'afectoIva' && v !== '')
+
+  const limpiar = () => {
+    setNuevoProducto({ ...PRODUCTO_VACIO, afectoIva: afecto })
+    idRef.current?.focus()
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (saving) return
+    if (!(Number(nuevoProducto.precioVentaLocal) > 0)) {
+      toast.error('Falta el precio de venta local')
+      return
+    }
+    setSaving(true)
     try {
       if (nuevoProducto.idProducto) {
         const q = query(
@@ -287,44 +318,25 @@ function CreateProducts({ onProductCreated }) {
         afectoIva: afecto
       })
 
-      toast.success('Producto creado con éxito')
-
-      setNuevoProducto({
-        nombreProducto: '',
-        marcaProducto: '',
-        categoriaProducto: '',
-        precioVentaLocal: '',
-        precioVentaWeb: '',
-        precioOriginal: '',
-        cantidadProducto: '',
-        imagenProducto: '',
-        idProducto: '',
-        afectoIva: nuevoProducto.afectoIva !== false
+      // Se queda aquí: lo normal es cargar varios productos seguidos.
+      toast.success('Producto creado', {
+        description: nuevoProducto.nombreProducto,
+        action: { label: 'Ver inventario', onClick: () => navigate('/productos') }
       })
-      if (onProductCreated) onProductCreated()
+      limpiar()
     } catch (error) {
       console.error("Error al crear producto:", error)
       toast.error('Error al crear producto')
+    } finally {
+      setSaving(false)
     }
   }
 
   return (
-    <div className="page-fit flex flex-col">
-      {/* Cabecera fija: con el scroll dentro del formulario, Guardar queda
-          siempre a la vista por largo que sea el contenido. */}
-      <div className="flex items-center justify-between gap-3 mb-4 tall:mb-6 shrink-0">
-        <div className="min-w-0">
-          <h2 className="text-lg sm:text-2xl font-bold text-white tracking-[-0.01em] truncate">Crear Producto</h2>
-          <p className="text-slate-400 text-sm hidden sm:block">Nuevo item para el inventario.</p>
-        </div>
-        <Button
-          onClick={handleSubmit}
-          className="bg-primary hover:bg-primary/90 text-white font-bold px-4 sm:px-6 h-11 shrink-0 shadow-lg shadow-primary/20"
-        >
-          <Save className="w-4 h-4 sm:mr-2" />
-          <span className="hidden sm:inline">Guardar Producto</span>
-          <span className="sr-only sm:hidden">Guardar producto</span>
-        </Button>
+    <form onSubmit={handleSubmit} className="page-fit flex flex-col">
+      <div className="mb-4 tall:mb-6 shrink-0">
+        <h2 className="text-lg sm:text-2xl font-bold text-white tracking-[-0.01em] truncate">Crear Producto</h2>
+        <p className="text-slate-400 text-sm hidden sm:block">Nuevo item para el inventario.</p>
       </div>
 
       {/* Por debajo de lg todo scrollea junto en un único hilo; a partir de lg
@@ -377,6 +389,7 @@ function CreateProducts({ onProductCreated }) {
                   value={nuevoProducto.idProducto}
                   onChange={handleChange}
                   className="font-mono text-sm bg-slate-950 border-purple-500/30 focus:border-purple-500 h-10"
+                  ref={idRef}
                   autoFocus
                 />
               </div>
@@ -513,9 +526,40 @@ function CreateProducts({ onProductCreated }) {
               />
             </div>
           </Card>
+
+          {/* Acciones al cierre del formulario: el ojo termina en Precios y
+              Guardar está justo debajo, no en el borde de la pantalla. */}
+          <div className="shrink-0 flex flex-col-reverse @md:flex-row @md:items-center @md:justify-between gap-3 pb-2">
+            <p className="text-xs text-slate-500 text-center @md:text-left">
+              {hayBorrador ? 'Borrador guardado en este equipo.' : 'Los campos con * son obligatorios.'}
+            </p>
+            <div className="flex gap-2 @md:gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={limpiar}
+                disabled={saving || !hayBorrador}
+                className="h-12 px-4 flex-1 @md:flex-none inline-flex items-center justify-center gap-2 whitespace-nowrap
+                           disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <Eraser className="w-4 h-4" />
+                Limpiar
+              </Button>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="h-12 px-6 flex-[2] @md:flex-none @md:min-w-[220px] text-base font-bold
+                           inline-flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-60"
+              >
+                <Save className="w-5 h-5" />
+                {saving ? 'Guardando…' : 'Guardar producto'}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+
+    </form>
   )
 }
 
