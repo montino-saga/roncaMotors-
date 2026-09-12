@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { collection, doc, getDoc, getDocs, query, orderBy, Timestamp, writeBatch, increment } from 'firebase/firestore'
 import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
@@ -581,10 +581,13 @@ function ClientDetails() {
                                 {paginatedData.map((item) => {
                                     // Handle Standard View
                                     const mov = item
+                                    // El movimiento guarda precios ya con descuento de línea; lo que
+                                    // falta para llegar a `amount` es el descuento al total.
+                                    const subtotalMov = (mov.products || []).reduce((acc, p) => acc + p.precio * p.cantidad, 0)
+                                    const dctoTotalMov = subtotalMov - (mov.amount || 0)
                                     return (
-                                        <>
+                                        <Fragment key={mov.id}>
                                             <tr 
-                                                key={mov.id} 
                                                 className={cn(
                                                     "hover:bg-white/5 group transition-colors border-b border-white/5 last:border-0",
                                                     activeTab === 'purchases' && "cursor-pointer"
@@ -710,11 +713,23 @@ function ClientDetails() {
                                                                     </div>
                                                                 ))}
                                                             </div>
+                                                            <div className="mt-2 pt-2 border-t border-white/10 space-y-1 text-sm font-mono">
+                                                                {dctoTotalMov > 0 && (
+                                                                    <div className="flex justify-between text-amber-300">
+                                                                        <span>Descuento al total</span>
+                                                                        <span>−{formatCLP(dctoTotalMov)}</span>
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex justify-between text-white font-bold">
+                                                                    <span>Total</span>
+                                                                    <span>{formatCLP(mov.amount || 0)}</span>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </td>
                                                 </tr>
                                             )}
-                                        </>
+                                        </Fragment>
                                     )
                                 })}
                             </tbody>

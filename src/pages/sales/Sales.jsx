@@ -476,14 +476,15 @@ function Sales() {
                     cantidad: item.cantidad,
                     precio: getLocalPrice(item)
                 })),
+                descuentoTotal: Number(descuentoTotal) || 0,
                 saleId: saleRef.id // Link to main sale
             })
 
             // 3. Update Client Debt
+            // increment(): la deuda real vive en el servidor; la lista local puede estar vieja.
             const clientRef = doc(db, 'clients', selectedClientId)
-            const currentDebt = clientDoc?.currentDebt || 0
             batch.update(clientRef, {
-                currentDebt: currentDebt + total,
+                currentDebt: increment(total),
                 lastUpdated: Timestamp.now()
             })
 

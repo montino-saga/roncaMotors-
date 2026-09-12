@@ -50,6 +50,10 @@ describe('precios', () => {
       expect(formulaReferencia(1000)).toEqual({ neto: 1667, precio: 1984 })
       expect(formulaReferencia(600)).toEqual({ neto: 1000, precio: 1190 })
     })
+    it('exento: el precio es el neto, sin × 1,19', () => {
+      expect(formulaReferencia(1000, false)).toEqual({ neto: 1667, precio: 1667 })
+      expect(formulaReferencia(600, false)).toEqual({ neto: 1000, precio: 1000 })
+    })
     it('null sin costo', () => {
       expect(formulaReferencia(0)).toBeNull()
       expect(formulaReferencia(undefined)).toBeNull()

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { usePersistedState } from '../../hooks/usePersistedState'
-import { collection, getDocs, orderBy, query, where, doc, updateDoc, writeBatch, increment } from 'firebase/firestore'
+import { collection, getDocs, orderBy, query, where, doc, writeBatch, increment, Timestamp } from 'firebase/firestore'
 import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
 import { descuentoItemsVenta, ventaConDescuento } from '../../lib/descuentos'
 import { db } from '../../db/firebase'
@@ -143,21 +143,67 @@ function SalesHistory() {
         setIsModalOpen(true)
     }
 
+    // Deja la deuda del cliente y su historial coherentes al sacar una venta
+    // del fiado (borrada o pagada de otra forma).
+    const revertirFiado = async (batch, sale) => {
+        if (sale.tipoPago !== 'fiado' || !sale.idCliente) return
+        const clientRef = doc(db, 'clients', sale.idCliente)
+        batch.update(clientRef, {
+            currentDebt: increment(-(sale.totalVenta || 0)),
+            lastUpdated: Timestamp.now()
+        })
+        const movs = await getDocs(query(
+            collection(db, `clients/${sale.idCliente}/movements`),
+            where('saleId', '==', sale.id)
+        ))
+        movs.forEach(m => { if (m.data().type === 'purchase') batch.delete(m.ref) })
+    }
+
+    const registrarFiado = (batch, sale) => {
+        const clientRef = doc(db, 'clients', sale.idCliente)
+        batch.update(clientRef, {
+            currentDebt: increment(sale.totalVenta || 0),
+            lastUpdated: Timestamp.now()
+        })
+        const movementRef = doc(collection(db, `clients/${sale.idCliente}/movements`))
+        batch.set(movementRef, {
+            type: 'purchase',
+            amount: sale.totalVenta || 0,
+            date: Timestamp.now(),
+            products: sale.productos.map(p => ({
+                idProducto: p.idProducto,
+                nombreProducto: p.nombreProducto,
+                cantidad: p.cantidad,
+                precio: getLocalPrice(p)
+            })),
+            descuentoTotal: sale.descuentoTotal || 0,
+            saleId: sale.id
+        })
+    }
+
     const handleUpdatePayment = async () => {
-        if (!selectedSale || !newPaymentMethod) return
+        if (!selectedSale || !newPaymentMethod || newPaymentMethod === selectedSale.tipoPago) {
+            setIsEditingPayment(false)
+            return
+        }
+        if (newPaymentMethod === 'fiado' && !selectedSale.idCliente) {
+            toast.error('La venta no tiene cliente: no se puede pasar a fiado')
+            return
+        }
 
         try {
+            const batch = writeBatch(db)
             const saleRef = doc(db, 'sales', selectedSale.id)
-            await updateDoc(saleRef, {
-                tipoPago: newPaymentMethod
-            })
+            batch.update(saleRef, { tipoPago: newPaymentMethod, isFiado: newPaymentMethod === 'fiado' })
 
-            // Update local state
-            const updatedSales = sales.map(s =>
-                s.id === selectedSale.id ? { ...s, tipoPago: newPaymentMethod } : s
-            )
-            setSales(updatedSales)
-            setSelectedSale({ ...selectedSale, tipoPago: newPaymentMethod })
+            if (selectedSale.tipoPago === 'fiado') await revertirFiado(batch, selectedSale)
+            else if (newPaymentMethod === 'fiado') registrarFiado(batch, selectedSale)
+
+            await batch.commit()
+
+            const updatedSale = { ...selectedSale, tipoPago: newPaymentMethod, isFiado: newPaymentMethod === 'fiado' }
+            setSales(sales.map(s => s.id === selectedSale.id ? updatedSale : s))
+            setSelectedSale(updatedSale)
             setIsEditingPayment(false)
             toast.success('Método de pago actualizado')
         } catch (error) {
@@ -195,7 +241,10 @@ function SalesHistory() {
                 if (productRef) batch.update(productRef, { cantidadProducto: increment(prod.cantidad) })
             }
 
-            // 2. Eliminar venta
+            // 2. Si era fiado, descontar deuda y borrar el movimiento del cliente
+            await revertirFiado(batch, saleToDelete)
+
+            // 3. Eliminar venta
             const saleRef = doc(db, 'sales', saleId)
             batch.delete(saleRef)
 
@@ -267,6 +316,7 @@ function SalesHistory() {
 
             // Si no quedan productos, eliminamos la venta completa
             if (newProducts.length === 0) {
+                await revertirFiado(batch, selectedSale)
                 const saleRef = doc(db, 'sales', selectedSale.id)
                 batch.delete(saleRef)
                 
@@ -670,6 +720,7 @@ function SalesHistory() {
                                     >
                                         <option value="efectivo">Efectivo</option>
                                         <option value="tarjeta">Tarjeta</option>
+                                        {selectedSale.idCliente && <option value="fiado">Fiado</option>}
                                     </select>
                                 ) : (
                                     <p className="text-white font-medium capitalize">{selectedSale.tipoPago}</p>

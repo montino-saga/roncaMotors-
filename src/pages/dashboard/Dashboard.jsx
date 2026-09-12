@@ -41,8 +41,8 @@ function Dashboard() {
 
     // Date Filter State
     const [dateRange, setDateRange] = useState('week')
-    const [customStart] = useState('')
-    const [customEnd] = useState('')
+    const [customStart, setCustomStart] = useState('')
+    const [customEnd, setCustomEnd] = useState('')
 
     useEffect(() => {
         const fetchData = async () => {
@@ -227,6 +227,25 @@ function Dashboard() {
                         <option value="year">Este Año</option>
                         <option value="custom">Personalizado</option>
                     </select>
+                    {dateRange === 'custom' && (
+                        <div className="flex items-center gap-1.5 pr-1">
+                            <input
+                                type="date"
+                                value={customStart}
+                                max={customEnd || undefined}
+                                onChange={(e) => setCustomStart(e.target.value)}
+                                className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus:border-primary [color-scheme:dark]"
+                            />
+                            <span className="text-slate-500">–</span>
+                            <input
+                                type="date"
+                                value={customEnd}
+                                min={customStart || undefined}
+                                onChange={(e) => setCustomEnd(e.target.value)}
+                                className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus:border-primary [color-scheme:dark]"
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
 

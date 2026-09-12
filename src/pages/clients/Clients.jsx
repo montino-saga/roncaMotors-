@@ -9,7 +9,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Search, Plus, User, Phone, Mail, IdCard, Users, AlertCircle, DollarSign, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCLP, cn } from '../../lib/utils'
-import { formatRut } from '../../lib/rut'
+import { formatRut, validarRut } from '../../lib/rut'
 
 function Clients() {
     const navigate = useNavigate()
@@ -23,7 +23,10 @@ function Clients() {
     const [newClientPhone, setNewClientPhone] = useState('')
     const [newClientEmail, setNewClientEmail] = useState('')
     const [newClientRut, setNewClientRut] = useState('')
+    const [rutTocado, setRutTocado] = useState(false)
     const [creatingClient, setCreatingClient] = useState(false)
+
+    const rutInvalido = newClientRut.trim() !== '' && !validarRut(newClientRut)
 
     const fetchClients = async () => {
         setLoading(true)
@@ -50,6 +53,11 @@ function Clients() {
     const handleCreateClient = async (e) => {
         e.preventDefault()
         if (!newClientName.trim()) return
+        if (rutInvalido) {
+            setRutTocado(true)
+            toast.error('RUT inválido')
+            return
+        }
 
         setCreatingClient(true)
         try {
@@ -67,6 +75,7 @@ function Clients() {
             setNewClientPhone('')
             setNewClientEmail('')
             setNewClientRut('')
+            setRutTocado(false)
             fetchClients()
         } catch (error) {
             console.error("Error creating client:", error)
@@ -225,10 +234,17 @@ function Clients() {
                                 inputMode="text"
                                 value={newClientRut}
                                 onChange={(e) => setNewClientRut(e.target.value.replace(/[^0-9kK.-]/g, ''))}
-                                onBlur={() => setNewClientRut(formatRut(newClientRut))}
+                                onBlur={() => {
+                                    setNewClientRut(formatRut(newClientRut))
+                                    setRutTocado(true)
+                                }}
                                 placeholder="12.345.678-9"
-                                className="font-mono"
+                                className={cn("font-mono", rutTocado && rutInvalido && "border-red-500/60 focus:ring-red-500/40")}
+                                aria-invalid={rutTocado && rutInvalido}
                             />
+                            {rutTocado && rutInvalido && (
+                                <p className="text-xs text-red-400">RUT inválido</p>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-300">Correo (Opcional)</label>

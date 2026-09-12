@@ -28,11 +28,11 @@ export const margenImplicito = (costo, precioFinal, afecto = true) => {
 export const DIVISOR_REF = 0.6
 export const IVA_REF = 1.19
 
-/** precioVenta = ⌈⌈costo ÷ 0,6⌉ × 1,19⌉, en pesos enteros. */
-export const formulaReferencia = (costo) => {
+/** precioVenta = ⌈⌈costo ÷ 0,6⌉ × 1,19⌉, en pesos enteros. Exento: sin el × 1,19. */
+export const formulaReferencia = (costo, afecto = true) => {
     if (!(costo > 0)) return null
     const neto = Math.ceil(costo / DIVISOR_REF)
-    return { neto, precio: Math.ceil(neto * IVA_REF) }
+    return { neto, precio: afecto ? Math.ceil(neto * IVA_REF) : neto }
 }
 
 /** Indicadores de una venta: ganancia, markup sobre costo y margen sobre neto. */

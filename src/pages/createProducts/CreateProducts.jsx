@@ -142,18 +142,19 @@ function PrecioVenta({ label, tone, costo, precio, modo, pct, onModo, onPct, onP
   )
 }
 
-function FormulaPrecio({ costo }) {
-  const ref = formulaReferencia(costo)
+function FormulaPrecio({ costo, afecto }) {
+  const ref = formulaReferencia(costo, afecto)
   if (!ref) return null
   const { neto, precio } = ref
+  const iva = afecto ? ' × 1,19' : ''
 
   return (
     <div className="rounded-lg px-3 py-2 border border-emerald-500/25 bg-emerald-500/[0.06] text-[11px] tabular-nums space-y-0.5">
       <p className="text-slate-400">
-        Fórmula: <span className="text-slate-300">precioVenta = (costo neto ÷ 0,6) × 1,19</span>
+        Fórmula: <span className="text-slate-300">precioVenta = (costo neto ÷ 0,6){iva}</span>
       </p>
       <p className="text-slate-400">
-        ({clp(costo)} ÷ 0,6) × 1,19 = <span className="text-slate-200">{clp(neto)}</span> × 1,19
+        ({clp(costo)} ÷ 0,6){iva} = <span className="text-slate-200">{clp(neto)}</span>{iva}
       </p>
       <p className="flex justify-between gap-2 pt-1 border-t border-emerald-500/20">
         <span className="text-slate-400">Precio venta</span>
@@ -174,6 +175,11 @@ const PRODUCTO_VACIO = {
   imagenProducto: '',
   idProducto: '',
   afectoIva: true
+}
+
+const GANANCIA_INICIAL = {
+  modoLocal: 'pct', pctLocal: '40',
+  modoWeb: 'fijo', pctWeb: ''
 }
 
 function CreateProducts() {
@@ -206,10 +212,7 @@ function CreateProducts() {
 
   // Aparte del borrador del producto: son ayudas de captura, no campos del
   // documento. Mezclarlas haría que `addDoc({...nuevoProducto})` las guardara.
-  const [ganancia, setGanancia] = usePersistedState('roncamotors_create_product_ganancia', {
-    modoLocal: 'pct', pctLocal: '40',
-    modoWeb: 'fijo', pctWeb: ''
-  })
+  const [ganancia, setGanancia] = usePersistedState('roncamotors_create_product_ganancia', GANANCIA_INICIAL)
 
   const costo = Number(nuevoProducto.precioOriginal) || 0
 
@@ -268,6 +271,7 @@ function CreateProducts() {
 
   const limpiar = () => {
     setNuevoProducto({ ...PRODUCTO_VACIO, afectoIva: afecto })
+    setGanancia(GANANCIA_INICIAL)
     idRef.current?.focus()
   }
 
@@ -458,7 +462,7 @@ function CreateProducts() {
                   onChange={handleCosto}
                   className="bg-slate-950 h-10 font-medium"
                 />
-                <FormulaPrecio costo={costo} />
+                <FormulaPrecio costo={costo} afecto={afecto} />
               </div>
 
               <div className="space-y-1.5">
