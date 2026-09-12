@@ -37,6 +37,10 @@ export const firestoreMock = {
     if (target?.path === 'productos') {
       oyenteCatalogo = cb
       emitirCatalogo(catalogoFake.docs)
+    } else if (target?._coll) {
+      // Colección/query: QuerySnapshot con lo que haya en coleccionesFake.
+      const docs = coleccionesFake[target.path] || []
+      cb({ empty: docs.length === 0, docs: docs.map((p) => ({ id: p.id, data: () => p })), forEach: (fn) => docs.forEach((p) => fn({ id: p.id, data: () => p })) })
     } else {
       cb({ exists: () => false, data: () => ({}) })
     }

@@ -15,4 +15,6 @@ if (typeof window !== 'undefined') {
   window.HTMLElement.prototype.scrollIntoView = window.HTMLElement.prototype.scrollIntoView || function () {}
   // La animación de salida de AnimatePresence no interesa en tests.
   window.requestAnimationFrame = window.requestAnimationFrame || ((cb) => setTimeout(cb, 0))
+  // Layout y recharts miden con ResizeObserver; en jsdom basta un doble inerte.
+  window.ResizeObserver = window.ResizeObserver || class { observe() {} unobserve() {} disconnect() {} }
 }
