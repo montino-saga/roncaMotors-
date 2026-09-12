@@ -16,6 +16,16 @@ export function Modal({
     const panelRef = useRef(null);
     const restoreRef = useRef(null);
 
+    // onClose suele ser una arrow inline: nueva identidad en cada render. Si
+    // el efecto dependiera de ella, cada tecla lo reiniciaría y el cleanup
+    // devolvería el foco al disparador a mitad de escritura.
+    const onCloseRef = useRef(onClose);
+    const dismissibleRef = useRef(dismissible);
+    useEffect(() => {
+        onCloseRef.current = onClose;
+        dismissibleRef.current = dismissible;
+    });
+
     useEffect(() => {
         if (!isOpen) return;
 
@@ -24,9 +34,9 @@ export function Modal({
         document.body.style.overflow = "hidden";
 
         const onKey = (e) => {
-            if (e.key === "Escape" && dismissible) {
+            if (e.key === "Escape" && dismissibleRef.current) {
                 e.stopPropagation();
-                onClose?.();
+                onCloseRef.current?.();
                 return;
             }
             if (e.key !== "Tab") return;
@@ -53,7 +63,7 @@ export function Modal({
             document.body.style.overflow = prevOverflow;
             restoreRef.current?.focus?.();
         };
-    }, [isOpen, dismissible, onClose]);
+    }, [isOpen]);
 
     return (
         <AnimatePresence>
