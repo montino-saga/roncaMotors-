@@ -417,6 +417,9 @@ function ClientDetails() {
         )
     }
 
+    // Cliente no encontrado: ya se avisó y se navegó; no hay nada que pintar.
+    if (!client) return null
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col">
             {/* Header: la ficha del cliente es una tarjeta más, no texto suelto. */}

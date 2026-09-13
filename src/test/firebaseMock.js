@@ -26,7 +26,13 @@ const ref = (path) => ({ path, id: path.split('/').pop() })
 
 export const firestoreMock = {
   collection: vi.fn((_db, name) => ({ path: name, _coll: true })),
-  doc: vi.fn((_db, coll, id) => ref(typeof coll === 'object' ? `${coll.path}/nuevo-${Math.random().toString(36).slice(2, 8)}` : `${coll}/${id}`)),
+  // Formas: doc(db, 'coll', id) · doc(db, collRef) · doc(collRef) (id automático).
+  doc: vi.fn((a, b, c) => {
+    const nuevoId = () => `nuevo-${Math.random().toString(36).slice(2, 8)}`
+    if (a?._coll) return ref(`${a.path}/${nuevoId()}`)
+    if (typeof b === 'object') return ref(`${b.path}/${nuevoId()}`)
+    return ref(`${b}/${c}`)
+  }),
   query: vi.fn((c, ...rest) => ({ ...c, filtros: rest })),
   where: vi.fn((f, op, v) => ({ where: [f, op, v] })),
   orderBy: vi.fn(() => ({})),
