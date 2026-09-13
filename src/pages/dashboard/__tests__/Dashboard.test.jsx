@@ -27,7 +27,7 @@ beforeEach(() => {
 describe('Dashboard (bento)', () => {
   it('KPIs financieros y operativos', async () => {
     render(<MemoryRouter><Dashboard /></MemoryRouter>)
-    const kpi = async (label) => (await screen.findByText(label)).parentElement
+    const kpi = async (label) => (await screen.findByText(label)).closest('.card-entra')
     expect(await kpi('Ingresos Reales')).toHaveTextContent('$15.000')     // efectivo + abono
     expect(await kpi('Ventas Fiadas')).toHaveTextContent('$10.000')
     expect(await kpi('Deuda Clientes')).toHaveTextContent('$10.000')

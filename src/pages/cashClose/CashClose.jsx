@@ -281,8 +281,8 @@ function CashClose() {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 animate-in fade-in duration-500 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
                 <div>
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <Lock className="w-6 h-6 text-emerald-400" />
@@ -309,7 +309,7 @@ function CashClose() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
                 <Card className="p-4 border-l-4 border-l-blue-500">
                     <p className="text-sm text-slate-400 mb-1">Saldo Inicial</p>
                     <p className="text-2xl font-bold text-white">{formatCLP(session.openingBalance)}</p>
@@ -332,14 +332,15 @@ function CashClose() {
                 </Card>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Movimientos ocupa el alto restante; el cierre queda a su altura. */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 lg:min-h-0 items-start">
                 {/* Movements List */}
-                <Card className="p-6">
-                    <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
+                <Card className="p-5 flex flex-col min-h-0 lg:h-full">
+                    <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2 shrink-0">
                         <History className="w-5 h-5 text-slate-400" />
                         Movimientos
                     </h3>
-                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                    <div className="space-y-3 max-h-[300px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                         {movements.length === 0 ? (
                             <p className="text-slate-500 text-center py-8">No hay movimientos registrados</p>
                         ) : (
@@ -371,7 +372,7 @@ function CashClose() {
                 </Card>
 
                 {/* Closing Form */}
-                <Card className="p-6 border-red-500/20 bg-red-500/5">
+                <Card className="p-5 border-red-500/20 bg-red-500/5">
                     <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-red-400" />
                         Cierre de Caja (Corte Z)

@@ -564,14 +564,14 @@ function SalesHistory() {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-white/10 bg-white/5">
-                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm">Fecha</th>
-                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm hidden sm:table-cell">ID</th>
-                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm">Cliente</th>
-                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm">Items</th>
-                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm">Pago</th>
-                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right hidden md:table-cell">Descuento</th>
-                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Total</th>
-                                            <th className="px-4 py-3 font-medium text-slate-300 text-sm text-right">Acciones</th>
+                                            <th className="px-4 py-2.5 font-medium text-slate-300 text-sm">Fecha</th>
+                                            <th className="px-4 py-2.5 font-medium text-slate-300 text-sm hidden sm:table-cell">ID</th>
+                                            <th className="px-4 py-2.5 font-medium text-slate-300 text-sm">Cliente</th>
+                                            <th className="px-4 py-2.5 font-medium text-slate-300 text-sm">Items</th>
+                                            <th className="px-4 py-2.5 font-medium text-slate-300 text-sm">Pago</th>
+                                            <th className="px-4 py-2.5 font-medium text-slate-300 text-sm text-right hidden md:table-cell">Descuento</th>
+                                            <th className="px-4 py-2.5 font-medium text-slate-300 text-sm text-right">Total</th>
+                                            <th className="px-4 py-2.5 font-medium text-slate-300 text-sm text-right">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
@@ -584,16 +584,16 @@ function SalesHistory() {
                                         ) : (
                                             filteredSales.map((sale) => (
                                                 <tr key={sale.id} className="hover:bg-white/5 transition-colors group">
-                                                    <td className="px-4 py-3 text-slate-300">
+                                                    <td className="px-4 py-2 text-slate-300">
                                                         <div className="flex items-center gap-2">
                                                             <Calendar className="w-4 h-4 text-slate-500" />
                                                             {formatDate(sale.fechaVenta)}
                                                         </div>
                                                     </td>
-                                                    <td className="px-4 py-3 text-slate-500 font-mono text-xs hidden sm:table-cell">
+                                                    <td className="px-4 py-2 text-slate-500 font-mono text-xs hidden sm:table-cell">
                                                         {sale.id.slice(0, 8)}
                                                     </td>
-                                                    <td className="px-4 py-3">
+                                                    <td className="px-4 py-2">
                                                         {sale.nombreCliente ? (
                                                             <div className="flex flex-col">
                                                                 <span className="font-medium text-white text-sm">{sale.nombreCliente}</span>
@@ -607,10 +607,10 @@ function SalesHistory() {
                                                             <span className="text-slate-600">-</span>
                                                         )}
                                                     </td>
-                                                    <td className="px-4 py-3 text-slate-300">
+                                                    <td className="px-4 py-2 text-slate-300">
                                                         {sale.productos.length} items
                                                     </td>
-                                                    <td className="px-4 py-3">
+                                                    <td className="px-4 py-2">
                                                         <span className={cn(
                                                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border capitalize",
                                                             sale.tipoPago === 'efectivo'
@@ -627,7 +627,7 @@ function SalesHistory() {
                                                             {sale.tipoPago}
                                                         </span>
                                                     </td>
-                                                    <td className="px-4 py-3 text-right tabular-nums hidden md:table-cell">
+                                                    <td className="px-4 py-2 text-right tabular-nums hidden md:table-cell">
                                                         {tieneDescuento(sale) ? (
                                                             <span
                                                                 title={(sale.descuentoTotal || 0) > 0 && descuentoItems(sale) > 0
@@ -643,10 +643,10 @@ function SalesHistory() {
                                                             <span className="text-slate-600">—</span>
                                                         )}
                                                     </td>
-                                                    <td className="px-4 py-3 font-bold text-emerald-400 text-right tabular-nums">
+                                                    <td className="px-4 py-2 font-bold text-emerald-400 text-right tabular-nums">
                                                         {formatCLP(sale.totalVenta)}
                                                     </td>
-                                                    <td className="px-4 py-3 text-right">
+                                                    <td className="px-4 py-2 text-right">
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleViewDetails(sale)}

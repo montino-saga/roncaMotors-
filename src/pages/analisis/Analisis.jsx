@@ -98,13 +98,13 @@ function Analisis() {
     const deltaTotal = datos.totalPrevio > 0 ? ((datos.totalActual - datos.totalPrevio) / datos.totalPrevio) * 100 : null
 
     return (
-        <div className="flex flex-col gap-4 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
+        <div className="flex flex-col gap-3 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
                 <div>
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <FlaskConical className="w-6 h-6 text-primary" /> Análisis
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2 leading-tight">
+                        <FlaskConical className="w-5 h-5 text-primary" /> Análisis
                     </h2>
-                    <p className="text-slate-400 text-sm">Patrones y comparativas de los últimos {dias} días.</p>
+                    <p className="text-slate-400 text-xs">Patrones y comparativas de los últimos {dias} días.</p>
                 </div>
                 <div role="radiogroup" aria-label="Rango" className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-xl border border-white/10 self-start md:self-auto">
                     {RANGOS.map(r => (
@@ -125,15 +125,28 @@ function Analisis() {
                 </div>
             </div>
 
-            {/* Bento lg: 4 col × 6 filas. KPIs fila 1; tendencia 3×3; insights 1×5; heatmap 3×2. */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 lg:grid-rows-6 gap-4 flex-1 lg:min-h-0">
+            {/* Bento lg: KPIs e insights a su altura natural (auto); tendencia y
+                heatmap se reparten el resto. Los insights van en tira horizontal:
+                son 1–8 frases, una columna quedaba medio vacía. */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 lg:grid-rows-[auto_auto_3fr_2fr] gap-3 flex-1 lg:min-h-0">
                 {datos.kpis.map(k => <Kpi key={k.clave} {...k} color={settings.primaryColor} />)}
 
+                {/* Insights */}
+                <Card className="col-span-2 lg:col-span-4 p-3 bg-slate-900/50 min-h-0">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Lightbulb className="w-4 h-4 text-yellow-400" />
+                        <h3 className="font-bold text-white text-sm">Lo que dicen tus datos</h3>
+                    </div>
+                    <ul className="flex flex-wrap gap-2">
+                        {datos.frases.map((f, i) => <Insight key={i} {...f} />)}
+                    </ul>
+                </Card>
+
                 {/* Tendencia + fantasma */}
-                <Card className="col-span-2 lg:col-span-3 lg:row-span-3 p-4 lg:p-5 bg-slate-900/50 flex flex-col min-h-0">
-                    <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
-                        <h3 className="text-base font-bold text-white flex items-center gap-2">
-                            <TrendingUp className="w-5 h-5 text-primary" /> Tendencia vs. período anterior
+                <Card className="col-span-2 lg:col-span-4 p-4 bg-slate-900/50 flex flex-col min-h-0">
+                    <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 text-primary" /> Tendencia vs. período anterior
                         </h3>
                         <div className="flex items-center gap-3 text-xs text-slate-400">
                             <Delta valor={deltaTotal} />
@@ -162,23 +175,11 @@ function Analisis() {
                     </div>
                 </Card>
 
-                {/* Insights */}
-                <Card className="col-span-2 lg:col-span-1 lg:row-span-5 p-0 bg-slate-900/50 overflow-hidden flex flex-col min-h-0">
-                    <div className="p-3 border-b border-white/10 bg-white/5 shrink-0">
-                        <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                            <Lightbulb className="w-4 h-4 text-yellow-400" /> Lo que dicen tus datos
-                        </h3>
-                    </div>
-                    <ul className="flex-1 overflow-y-auto custom-scrollbar min-h-0 p-3 space-y-2">
-                        {datos.frases.map((f, i) => <Insight key={i} {...f} />)}
-                    </ul>
-                </Card>
-
                 {/* Heatmap */}
-                <Card className="col-span-2 lg:col-span-3 lg:row-span-2 p-4 lg:p-5 bg-slate-900/50 flex flex-col min-h-0">
-                    <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
-                        <h3 className="text-base font-bold text-white flex items-center gap-2">
-                            <Flame className="w-5 h-5 text-orange-400" /> Cuándo se vende
+                <Card className="col-span-2 lg:col-span-4 p-4 bg-slate-900/50 flex flex-col min-h-0 h-64 lg:h-auto">
+                    <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <Flame className="w-4 h-4 text-orange-400" /> Cuándo se vende
                         </h3>
                         <span className="text-xs text-slate-400">pedidos por día y hora</span>
                     </div>
@@ -216,7 +217,7 @@ function Sparkline({ serie, color }) {
     const pts = serie.map((v, i) => `${(i * paso).toFixed(1)},${(H - (v / max) * (H - 2) - 1).toFixed(1)}`)
     const linea = pts.join(' ')
     return (
-        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-x-0 bottom-0 w-full h-10 pointer-events-none" aria-hidden="true">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-x-0 bottom-0 w-full h-7 pointer-events-none" aria-hidden="true">
             <polygon points={`0,${H} ${linea} ${W},${H}`} fill={color} opacity="0.12" />
             <polyline points={linea} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" opacity="0.8" />
         </svg>
@@ -225,12 +226,12 @@ function Sparkline({ serie, color }) {
 
 function Kpi({ label, valor, delta, serie, moneda, color }) {
     return (
-        <Card className="p-4 bg-slate-900/50 relative overflow-hidden flex flex-col justify-center min-h-0 min-w-0">
+        <Card className="px-3.5 pt-3 pb-4 bg-slate-900/50 relative overflow-hidden flex flex-col justify-center min-h-0 min-w-0">
             <div className="flex items-start justify-between gap-2 relative z-10">
                 <p className="text-slate-400 text-[11px] uppercase font-bold tracking-wider truncate">{label}</p>
                 <Delta valor={delta} />
             </div>
-            <h3 className="text-2xl font-bold text-white truncate relative z-10 mb-4">
+            <h3 className="text-xl font-bold text-white truncate relative z-10 leading-tight">
                 {moneda ? formatCLP(valor) : valor}
             </h3>
             <Sparkline serie={serie} color={color} />
@@ -247,8 +248,8 @@ const TONO = {
 function Insight({ tono, texto }) {
     const { Icono, clase } = TONO[tono] ?? TONO.neutro
     return (
-        <li className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white/5">
-            <span className={cn('p-1.5 rounded-md shrink-0', clase)}><Icono className="w-4 h-4" /></span>
+        <li className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5 max-w-full">
+            <span className={cn('p-1 rounded-md shrink-0', clase)}><Icono className="w-3.5 h-3.5" /></span>
             <p className="text-sm text-slate-200 leading-snug">{texto}</p>
         </li>
     )

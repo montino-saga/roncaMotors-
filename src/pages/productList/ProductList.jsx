@@ -510,24 +510,24 @@ function ProductList() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm">Imagen</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm hidden @2xl:table-cell">ID</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm">Nombre</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm hidden @xl:table-cell">Marca</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm hidden @md:table-cell">Categoría</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm">Precio Local</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm hidden @3xl:table-cell">Margen</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm hidden @4xl:table-cell">Rotación</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm hidden @5xl:table-cell">Web</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm">Stock</th>
-                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-3 font-medium text-slate-300 text-sm text-right">Acciones</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm">Imagen</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm hidden @2xl:table-cell">ID</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm">Nombre</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm hidden @xl:table-cell">Marca</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm hidden @md:table-cell">Categoría</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm">Precio Local</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm hidden @3xl:table-cell">Margen</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm hidden @4xl:table-cell">Rotación</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm hidden @5xl:table-cell">Web</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm">Stock</th>
+                    <th className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-sm reduce-transparency:bg-slate-950 border-b border-white/10 px-4 py-2.5 font-medium text-slate-300 text-sm text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {currentItems.map((producto) => (
                     <tr key={producto.id} className="hover:bg-white/5 transition-colors group">
-                      <td className="px-4 py-3">
-                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-white/5 border border-white/10 grid place-items-center">
+                      <td className="px-4 py-2">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-white/5 border border-white/10 grid place-items-center">
                           {producto.imagenProducto ? (
                             <img
                               src={producto.imagenProducto}
@@ -539,20 +539,20 @@ function ProductList() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-400 font-mono text-[10px] hidden @2xl:table-cell">
+                      <td className="px-4 py-2 text-slate-400 font-mono text-[10px] hidden @2xl:table-cell">
                         {producto.idProducto || producto.id.slice(0, 8)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2">
                         <div className="font-medium text-white text-sm">{producto.nombreProducto}</div>
                       </td>
-                      <td className="px-4 py-3 text-slate-300 text-sm hidden @xl:table-cell">{producto.marcaProducto}</td>
-                      <td className="px-4 py-3 hidden @md:table-cell">
+                      <td className="px-4 py-2 text-slate-300 text-sm hidden @xl:table-cell">{producto.marcaProducto}</td>
+                      <td className="px-4 py-2 hidden @md:table-cell">
                         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
                           <Tag className="w-3 h-3" />
                           {producto.categoriaProducto}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-4 py-2 text-sm">
                         <div className="font-medium text-emerald-400 tabular-nums">
                           ${getLocalPrice(producto).toLocaleString('es-CL')}
                         </div>
@@ -587,7 +587,7 @@ function ProductList() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm hidden @4xl:table-cell">
+                      <td className="px-4 py-2 text-sm hidden @4xl:table-cell">
                         {rotacionError ? (
                           <span className="text-slate-600">—</span>
                         ) : producto._unidades === 0 ? (
@@ -606,10 +606,10 @@ function ProductList() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 font-medium text-sky-400 text-sm hidden @5xl:table-cell">
+                      <td className="px-4 py-2 font-medium text-sky-400 text-sm hidden @5xl:table-cell">
                         ${getWebPrice(producto).toLocaleString('es-CL')}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
                           <Package className={`w-3.5 h-3.5 ${getStockColor(producto.cantidadProducto)}`} />
                           <span className={`font-medium text-sm ${getStockColor(producto.cantidadProducto)}`}>
@@ -617,7 +617,7 @@ function ProductList() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-2 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => navigate(`/editar/${producto.id}`)}

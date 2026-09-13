@@ -200,7 +200,7 @@ function Dashboard() {
         const topProducts = Object.entries(productSales)
             .map(([name, count]) => ({ name, count }))
             .sort((a, b) => b.count - a.count)
-            .slice(0, 5)
+            .slice(0, 8)
 
         setChartsData({
             salesOverTime,
@@ -231,12 +231,12 @@ function Dashboard() {
     }
 
     return (
-        <div className="flex flex-col gap-4 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
+        <div className="flex flex-col gap-3 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
             {/* --- Header & Filters --- */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">Resumen General</h2>
-                    <p className="text-slate-400 text-sm">Estado actual de tu negocio en tiempo real.</p>
+                    <h2 className="text-xl font-bold text-white leading-tight">Resumen General</h2>
+                    <p className="text-slate-400 text-xs">Estado actual de tu negocio en tiempo real.</p>
                 </div>
 
                 <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-xl border border-white/10">
@@ -274,15 +274,26 @@ function Dashboard() {
                 </div>
             </div>
 
-            {/* Bento: en lg 4 columnas × 6 filas iguales que llenan el alto; abajo
-                de lg, 2 columnas con scroll normal. Las gráficas miden por flex
-                (min-h-0), no por altura fija, para que quepan en cualquier pantalla. */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 lg:grid-rows-6 gap-4 flex-1 lg:min-h-0 auto-rows-auto">
+            {/* Bento lg (12 col): fila de cifras a su altura natural (auto) y dos
+                filas iguales para gráficas y listas. Así una cifra no estira su
+                tarjeta hasta dejar aire vacío. Bajo lg: 2 columnas, scroll normal. */}
+            <div className="grid grid-cols-2 lg:grid-cols-12 lg:grid-rows-[auto_1fr_1fr] gap-3 flex-1 lg:min-h-0">
+                <Kpi label="Ingresos Reales" value={formatCLP(metrics.totalCashFlow)} tag="En Caja" color="emerald" Icon={Wallet} className="lg:col-span-2" />
+                <Kpi label="Ganancia Estimada" value={formatCLP(metrics.totalProfit)} tag={`Margen ${metrics.profitMargin.toFixed(1)}%`} color="purple" Icon={TrendingUp} className="lg:col-span-2" />
+                <Kpi label="Ventas Fiadas" value={formatCLP(metrics.totalCreditSales)} tag="Por Cobrar" color="red" Icon={CreditCard} className="lg:col-span-2" />
+                <Kpi label="Deuda Clientes" value={formatCLP(metrics.totalPendingDebt)} tag="Saldo Global" color="blue" Icon={User} className="lg:col-span-2" />
 
-                {/* Tendencia — 2×3 */}
-                <Card className="col-span-2 lg:row-span-3 p-4 lg:p-5 bg-slate-900/50 flex flex-col min-h-0 order-3 lg:order-none">
-                    <h3 className="text-base font-bold text-white flex items-center gap-2 mb-3 shrink-0">
-                        <TrendingUp className="w-5 h-5 text-primary" />
+                {/* Operativo: tres cifras rápidas en una tira */}
+                <Card className="col-span-2 lg:col-span-4 p-3 bg-slate-900/50 grid grid-cols-3 gap-2 items-center min-h-0">
+                    <Mini Icon={ShoppingBag} label="Pedidos" value={metrics.totalOrders} />
+                    <Mini Icon={DollarSign} label="Ticket Promedio" value={formatCLP(metrics.averageOrderValue)} />
+                    <Mini Icon={AlertCircle} label="Stock Bajo" value={`${lowStockCount} prod.`} alerta={lowStockCount > 0} />
+                </Card>
+
+                {/* Tendencia */}
+                <Card className="col-span-2 lg:col-span-8 p-4 bg-slate-900/50 flex flex-col min-h-0">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-2 shrink-0">
+                        <TrendingUp className="w-4 h-4 text-primary" />
                         Tendencia de Ventas
                     </h3>
                     <div className="h-56 lg:h-auto lg:flex-1 min-h-0">
@@ -307,43 +318,9 @@ function Dashboard() {
                     </div>
                 </Card>
 
-                {/* KPIs — 1×1 cada uno */}
-                <Kpi label="Ingresos Reales" value={formatCLP(metrics.totalCashFlow)} tag="En Caja" color="emerald" Icon={Wallet} className="order-1 lg:order-none" />
-                <Kpi label="Ganancia Estimada" value={formatCLP(metrics.totalProfit)} tag={`Margen ${metrics.profitMargin.toFixed(1)}%`} color="purple" Icon={TrendingUp} className="order-1 lg:order-none" />
-                <Kpi label="Ventas Fiadas" value={formatCLP(metrics.totalCreditSales)} tag="Por Cobrar" color="red" Icon={CreditCard} className="order-2 lg:order-none" />
-                <Kpi label="Deuda Clientes" value={formatCLP(metrics.totalPendingDebt)} tag="Saldo Global" color="blue" Icon={User} className="order-2 lg:order-none" />
-
-                {/* Operativo — 2×1: tres cifras rápidas en una tira */}
-                <Card className="col-span-2 p-3 lg:p-4 bg-slate-900/50 grid grid-cols-3 gap-2 items-center min-h-0 order-2 lg:order-none">
-                    <Mini Icon={ShoppingBag} label="Pedidos" value={metrics.totalOrders} />
-                    <Mini Icon={DollarSign} label="Ticket Promedio" value={formatCLP(metrics.averageOrderValue)} />
-                    <Mini Icon={AlertCircle} label="Stock Bajo" value={`${lowStockCount} prod.`} alerta={lowStockCount > 0} />
-                </Card>
-
-                {/* Horarios — 2×3 */}
-                <Card className="col-span-2 lg:row-span-3 p-4 lg:p-5 bg-slate-900/50 flex flex-col min-h-0 order-4 lg:order-none">
-                    <h3 className="text-base font-bold text-white flex items-center gap-2 mb-3 shrink-0">
-                        <Clock className="w-5 h-5 text-orange-400" />
-                        Horarios Punta
-                    </h3>
-                    <div className="h-48 lg:h-auto lg:flex-1 min-h-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartsData.hourlySales} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
-                                <XAxis dataKey="hour" stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 11 }} />
-                                <Tooltip
-                                    contentStyle={ct.tooltip}
-                                    cursor={{ fill: ct.cursor }}
-                                />
-                                <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Ventas" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-
-                {/* Top productos — 1×3 */}
-                <Card className="col-span-2 sm:col-span-1 lg:row-span-3 p-0 bg-slate-900/50 overflow-hidden flex flex-col min-h-0 h-80 lg:h-auto order-5 lg:order-none">
-                    <div className="p-3 border-b border-white/10 bg-white/5 shrink-0">
+                {/* Top productos */}
+                <Card className="col-span-2 sm:col-span-1 lg:col-span-4 p-0 bg-slate-900/50 overflow-hidden flex flex-col min-h-0 h-72 lg:h-auto">
+                    <div className="px-3 py-2 border-b border-white/10 bg-white/5 shrink-0">
                         <h3 className="font-bold text-white text-sm flex items-center gap-2">
                             <Package className="w-4 h-4 text-purple-400" />
                             Productos Top
@@ -377,9 +354,30 @@ function Dashboard() {
                     </div>
                 </Card>
 
-                {/* Últimas ventas — 1×3 */}
-                <Card className="col-span-2 sm:col-span-1 lg:row-span-3 p-0 bg-slate-900/50 overflow-hidden flex flex-col min-h-0 h-80 lg:h-auto order-6 lg:order-none">
-                    <div className="p-3 border-b border-white/10 bg-white/5 shrink-0">
+                {/* Horarios */}
+                <Card className="col-span-2 lg:col-span-8 p-4 bg-slate-900/50 flex flex-col min-h-0">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-2 shrink-0">
+                        <Clock className="w-4 h-4 text-orange-400" />
+                        Horarios Punta
+                    </h3>
+                    <div className="h-48 lg:h-auto lg:flex-1 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartsData.hourlySales} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+                                <XAxis dataKey="hour" stroke={ct.axis} tick={{ fill: ct.axis, fontSize: 11 }} />
+                                <Tooltip
+                                    contentStyle={ct.tooltip}
+                                    cursor={{ fill: ct.cursor }}
+                                />
+                                <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Ventas" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
+                {/* Últimas ventas */}
+                <Card className="col-span-2 sm:col-span-1 lg:col-span-4 p-0 bg-slate-900/50 overflow-hidden flex flex-col min-h-0 h-72 lg:h-auto">
+                    <div className="px-3 py-2 border-b border-white/10 bg-white/5 shrink-0">
                         <h3 className="font-bold text-white text-sm flex items-center gap-2">
                             <ArrowUpRight className="w-4 h-4 text-emerald-400" />
                             Últimas Ventas
@@ -438,15 +436,15 @@ function Kpi({ label, value, tag, color, Icon, className }) {
     const c = KPI_COLORES[color]
     return (
         <Card className={cn(
-            "p-4 border-l-4 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all",
-            "flex flex-col justify-center min-h-0 min-w-0", c.borde, className
+            "px-3.5 py-3 border-l-4 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all",
+            "flex flex-col justify-center min-h-0 min-w-0 gap-0.5", c.borde, className
         )}>
-            <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Icon className={cn("w-12 h-12", c.icono)} />
+            <div className="flex items-center justify-between gap-2">
+                <p className="text-slate-400 text-[11px] uppercase font-bold tracking-wider truncate">{label}</p>
+                <Icon className={cn("w-4 h-4 shrink-0 opacity-70", c.icono)} />
             </div>
-            <p className="text-slate-400 text-[11px] uppercase font-bold tracking-wider mb-0.5 truncate">{label}</p>
-            <h3 className="text-2xl font-bold text-white truncate">{value}</h3>
-            <span className={cn("text-[11px] px-2 py-0.5 rounded-full border self-start mt-1.5", c.tag)}>{tag}</span>
+            <h3 className="text-xl font-bold text-white truncate leading-tight">{value}</h3>
+            <span className={cn("text-[10px] px-1.5 py-px rounded-full border self-start", c.tag)}>{tag}</span>
         </Card>
     )
 }
@@ -454,12 +452,12 @@ function Kpi({ label, value, tag, color, Icon, className }) {
 function Mini({ Icon, label, value, alerta }) {
     return (
         <div className="flex items-center gap-2.5 min-w-0">
-            <div className={cn("p-2 rounded-lg shrink-0", alerta ? "bg-orange-500/20 text-orange-400" : "bg-slate-800 text-slate-300")}>
+            <div className={cn("p-1.5 rounded-lg shrink-0", alerta ? "bg-orange-500/20 text-orange-400" : "bg-slate-800 text-slate-300")}>
                 <Icon className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-                <p className="text-xs text-slate-400 truncate">{label}</p>
-                <p className={cn("text-base font-bold truncate", alerta ? "text-orange-400" : "text-white")}>{value}</p>
+                <p className="text-[11px] text-slate-400 truncate">{label}</p>
+                <p className={cn("text-sm font-bold truncate leading-tight", alerta ? "text-orange-400" : "text-white")}>{value}</p>
             </div>
         </div>
     )
