@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
     Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History,
     Globe, Lock, PanelLeft, PanelLeftClose, User, LogOut, Menu, Settings,
-    Search, Sun, Moon, Plus, FlaskConical
+    Search, Sun, Moon, Plus, FlaskConical, Receipt
 } from "lucide-react";
 import {
     motion, MotionConfig, animate, useMotionValue, useSpring,
@@ -45,6 +45,7 @@ const navSections = [
             { href: "/ventas", label: "Punto de Venta", icon: ShoppingCart },
             { href: "/clientes", label: "Clientes", icon: User },
             { href: "/pedidos-web", label: "Pedidos Web", icon: Globe },
+            { href: "/gastos", label: "Gastos", icon: Receipt },
         ]
     },
     {

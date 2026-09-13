@@ -53,6 +53,10 @@ service cloud.firestore {
       allow read, write: if esAdmin();
     }
 
+    match /gastos/{id} {
+      allow read, write: if esAdmin();
+    }
+
     match /settings/{id} {
       allow read, write: if esAdmin();
     }

@@ -22,6 +22,7 @@ const Clients = lazy(() => import('./pages/clients/Clients'))
 const ClientDetails = lazy(() => import('./pages/clients/ClientDetails'))
 const Settings = lazy(() => import('./pages/settings/Settings'))
 const Analisis = lazy(() => import('./pages/analisis/Analisis'))
+const Gastos = lazy(() => import('./pages/gastos/Gastos'))
 import { Layout } from './components/Layout'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -76,6 +77,7 @@ function Panel() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/analisis" element={<Analisis />} />
                     <Route path="/pedidos-web" element={<WebOrders />} />
+                    <Route path="/gastos" element={<Gastos />} />
                     <Route path="/cierre-caja" element={<CashClose />} />
                     <Route path="/configuracion" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />
