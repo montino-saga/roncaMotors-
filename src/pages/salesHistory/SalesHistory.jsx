@@ -705,12 +705,14 @@ function SalesHistory() {
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={handleUpdatePayment}
+                                                aria-label="Guardar medio de pago"
                                                 className="text-emerald-400 hover:text-emerald-300"
                                             >
                                                 <Save className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => setIsEditingPayment(false)}
+                                                aria-label="Cancelar edición"
                                                 className="text-red-400 hover:text-red-300"
                                             >
                                                 <X className="w-4 h-4" />

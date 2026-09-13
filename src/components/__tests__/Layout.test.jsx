@@ -38,6 +38,14 @@ describe('Layout', () => {
     expect(screen.getByText('ruta: /gastos')).toBeInTheDocument()
   })
 
+  it('título de la pestaña sigue a la vista', async () => {
+    const user = userEvent.setup()
+    montar('/ventas')
+    expect(document.title).toBe('Punto de Venta · Taller Norte')
+    await user.click(screen.getByRole('link', { name: /Gastos/ }))
+    expect(document.title).toBe('Gastos · Taller Norte')
+  })
+
   it('navegar por el menú cambia la vista', async () => {
     const user = userEvent.setup()
     montar('/ventas')

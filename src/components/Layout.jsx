@@ -133,6 +133,12 @@ export function Layout({ children }) {
     const [paletaOpen, setPaletaOpen] = useState(false);
     const navItems = navSections.flatMap((s) => s.items);
 
+    // Pestaña e historial del navegador con nombre de vista, no solo la marca.
+    useEffect(() => {
+        const item = navItems.find((i) => isRouteActive(location.pathname, i.href));
+        document.title = item ? `${item.label} · ${settings.businessName}` : settings.businessName;
+    }, [location.pathname, navItems, settings.businessName]);
+
     // Ctrl/⌘+K desde cualquier sitio, incluso con foco en un input.
     useEffect(() => {
         const onKey = (e) => {

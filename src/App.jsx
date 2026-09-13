@@ -6,6 +6,7 @@ import { VistaSkeleton } from './components/ui/Skeleton'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AvisoConexion } from './components/AvisoConexion'
 import { AlertaCaja } from './components/AlertaCaja'
+import { AvisoActualizacion } from './components/AvisoActualizacion'
 import NotFound from './pages/notFound/NotFound'
 
 // Un chunk por vista: el bundle único pesaba 1.7 MB y el móvil lo bajaba
@@ -61,6 +62,7 @@ function Panel() {
             />
             <AvisoConexion />
             <AlertaCaja />
+            <AvisoActualizacion />
             <Layout>
                 <Vista key={pathname}>
                 <ErrorBoundary>
