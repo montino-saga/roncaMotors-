@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth'
 import { auth } from '../db/firebase'
 
 const AuthContext = createContext()
@@ -18,9 +18,10 @@ export function AuthProvider({ children }) {
 
     const login = (email, password) => signInWithEmailAndPassword(auth, email, password)
     const logout = () => signOut(auth)
+    const recuperar = (email) => sendPasswordResetEmail(auth, email)
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout }}>
+        <AuthContext.Provider value={{ user, loading, login, logout, recuperar }}>
             {children}
         </AuthContext.Provider>
     )

@@ -892,6 +892,7 @@ function Sales() {
                                 onChange={(e) => setProductId(e.target.value)}
                                 onKeyDown={onSearchKeyDown}
                                 placeholder="Escanear o buscar por nombre..."
+                                data-tour="pos-buscar"
                                 className="pl-10 h-12 text-lg"
                                 autoComplete="off"
                                 role="combobox"
@@ -1061,6 +1062,7 @@ function Sales() {
                         </Button>
                         <Button
                             onClick={handleCheckout}
+                            data-tour="pos-cobrar"
                             className={cn(
                                 "flex-[1.6] sm:flex-none sm:w-full h-12 lg:h-14 text-base lg:text-xl font-bold shadow-lg transition-colors tracking-[-0.01em]",
                                 paymentType === 'fiado'

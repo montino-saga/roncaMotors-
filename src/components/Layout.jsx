@@ -1,10 +1,10 @@
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import {
     Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History,
     Globe, Lock, PanelLeft, PanelLeftClose, User, LogOut, Menu, Settings,
-    Search, Sun, Moon, Plus, FlaskConical, Receipt
+    Search, Sun, Moon, Plus, FlaskConical, Receipt, Sparkles
 } from "lucide-react";
 import {
     motion, MotionConfig, animate, useMotionValue, useSpring,
@@ -18,6 +18,11 @@ import { useAuth } from "../context/AuthContext";
 import { useAppearance } from "../context/AppearanceContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
+import { Novedades } from "./Novedades";
+import { Tour } from "./Tour";
+import { PASOS_TOUR } from "../lib/tour";
+import { useNovedades } from "../hooks/useNovedades";
+import { VERSION_ACTUAL } from "../lib/releases";
 
 const W_OPEN = 264;
 const W_SHUT = 76;
@@ -91,6 +96,7 @@ function NavItem({ item, active, showTooltip, labelOpacity }) {
     return (
         <Link
             to={item.href}
+            data-tour={`nav${item.href}`}
             title={showTooltip ? item.label : undefined}
             aria-current={active ? "page" : undefined}
             className={cn(
@@ -131,6 +137,7 @@ export function Layout({ children }) {
 
     const isDesktop = useMediaQuery("(min-width: 768px)");
     const [paletaOpen, setPaletaOpen] = useState(false);
+    const novedades = useNovedades();
     const navItems = navSections.flatMap((s) => s.items);
 
     // Pestaña e historial del navegador con nombre de vista, no solo la marca.
@@ -155,6 +162,11 @@ export function Layout({ children }) {
     const [collapsed, setCollapsed] = usePersistedState("roncamotors_nav_collapsed", false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const drawerRef = useRef(null);
+
+    // El recorrido señala items del menú: en móvil viven en el drawer.
+    const onPasoTour = useCallback((paso) => {
+        if (!isDesktop) setDrawerOpen(!!paso.menu);
+    }, [isDesktop]);
 
     // Una sola fuente de verdad para el ancho: el aside y el padding del main
     // leen el mismo valor, así no pueden desincronizarse.
@@ -350,7 +362,7 @@ export function Layout({ children }) {
                         {collapsed ? <PanelLeft size={15} /> : <PanelLeftClose size={15} />}
                     </motion.button>
 
-                    <div className="flex items-center h-12 mb-6 shrink-0">
+                    <div data-tour="marca" className="flex items-center h-12 mb-6 shrink-0">
                         <div className="w-12 h-12 shrink-0 grid place-items-center">
                             {settings.logo ? (
                                 <img
@@ -378,6 +390,7 @@ export function Layout({ children }) {
                     <button
                         type="button"
                         onClick={() => setPaletaOpen(true)}
+                        data-tour="buscar"
                         title={`Buscar  ${esMac ? "⌘" : "Ctrl+"}K`}
                         aria-label="Buscar en la app"
                         className="mb-4 shrink-0 flex items-center h-10 px-[14px] rounded-xl overflow-hidden
@@ -441,6 +454,37 @@ export function Layout({ children }) {
 
                         <button
                             type="button"
+                            onClick={novedades.abrirLista}
+                            data-tour="novedades"
+                            title={isDesktop && collapsed ? "Novedades" : undefined}
+                            aria-label={novedades.pendiente ? "Novedades, hay una versión nueva" : "Novedades"}
+                            className="w-full flex items-center h-11 px-[14px] rounded-xl overflow-hidden
+                                       transition-transform duration-100 ease-out active:scale-[0.98]
+                                       text-slate-300 hover:bg-white/[0.06] outline-none
+                                       focus-visible:ring-2 focus-visible:ring-primary/60"
+                        >
+                            <span className="relative shrink-0">
+                                <Sparkles className="w-5 h-5 text-slate-400" />
+                                {novedades.pendiente && (
+                                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-primary ring-2 ring-slate-900" />
+                                )}
+                            </span>
+                            <motion.span
+                                style={{ opacity: labelOpacity }}
+                                className="ml-3 text-sm font-medium whitespace-nowrap flex-1 text-left"
+                            >
+                                Novedades
+                            </motion.span>
+                            <motion.span
+                                style={{ opacity: labelOpacity }}
+                                className="text-[11px] text-slate-500 whitespace-nowrap"
+                            >
+                                v{VERSION_ACTUAL}
+                            </motion.span>
+                        </button>
+
+                        <button
+                            type="button"
                             onClick={() => setMode(resolved === "dark" ? "light" : "dark")}
                             title={isDesktop && collapsed ? (resolved === "dark" ? "Modo claro" : "Modo oscuro") : undefined}
                             aria-label={resolved === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
@@ -488,12 +532,21 @@ export function Layout({ children }) {
                         contain: "layout paint"
                     }}
                 >
-                    <main className="min-h-dvh px-4 md:px-6 lg:px-8 py-4 pt-[4.5rem] md:pt-4">
+                    <main data-tour="vista" className="min-h-dvh px-4 md:px-6 lg:px-8 py-4 pt-[4.5rem] md:pt-4">
                         {children}
                     </main>
                 </motion.div>
 
                 <CommandPalette open={paletaOpen} onClose={() => setPaletaOpen(false)} navItems={navItems} />
+                {novedades.modo === "tutorial" && (
+                    <Tour pasos={PASOS_TOUR} onFin={novedades.cerrar} onPaso={onPasoTour} />
+                )}
+                <Novedades
+                    abierto={novedades.modo === "lista"}
+                    versionVista={novedades.versionVista}
+                    onCerrar={novedades.cerrar}
+                    onRepetirTutorial={novedades.abrirTutorial}
+                />
             </div>
         </MotionConfig>
     );

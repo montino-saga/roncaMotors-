@@ -13,20 +13,41 @@ const errores = {
 }
 
 function Login() {
-    const { login } = useAuth()
+    const { login, recuperar } = useAuth()
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
+    const [aviso, setAviso] = useState('')
     const [loading, setLoading] = useState(false)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
         setError('')
+        setAviso('')
         setLoading(true)
         try {
             await login(email.trim(), password)
         } catch (err) {
             setError(errores[err.code] || 'No se pudo iniciar sesión.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleRecuperar = async () => {
+        const correo = email.trim()
+        setError('')
+        setAviso('')
+        if (!correo) {
+            setError('Escribe tu correo para recuperar la contraseña.')
+            return
+        }
+        setLoading(true)
+        try {
+            await recuperar(correo)
+            setAviso(`Te enviamos un correo a ${correo} para restablecer la contraseña.`)
+        } catch (err) {
+            setError(errores[err.code] || 'No se pudo enviar el correo de recuperación.')
         } finally {
             setLoading(false)
         }
@@ -73,11 +94,23 @@ function Login() {
                 {error && (
                     <p className="text-sm text-red-400 text-center">{error}</p>
                 )}
+                {aviso && (
+                    <p className="text-sm text-emerald-400 text-center">{aviso}</p>
+                )}
 
                 <Button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2">
                     <Lock className="w-4 h-4" />
                     {loading ? 'Entrando…' : 'Entrar'}
                 </Button>
+
+                <button
+                    type="button"
+                    onClick={handleRecuperar}
+                    disabled={loading}
+                    className="w-full text-sm text-slate-400 hover:text-white underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                    ¿Olvidaste tu contraseña?
+                </button>
             </form>
         </div>
     )

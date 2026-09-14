@@ -62,7 +62,6 @@ function Panel() {
             />
             <AvisoConexion />
             <AlertaCaja />
-            <AvisoActualizacion />
             <Layout>
                 <Vista key={pathname}>
                 <ErrorBoundary>
@@ -110,6 +109,8 @@ function App() {
     return (
         <AppearanceProvider>
             <AuthProvider>
+                {/* Fuera del Gate: el SW se registra desde el login, si no Chrome no ofrece instalar hasta entrar. */}
+                <AvisoActualizacion />
                 <Gate />
             </AuthProvider>
         </AppearanceProvider>

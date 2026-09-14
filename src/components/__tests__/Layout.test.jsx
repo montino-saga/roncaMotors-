@@ -24,7 +24,7 @@ const montar = (ruta = '/ventas') => render(
   </MemoryRouter>
 )
 
-beforeEach(() => { resetFirebaseMock(); escritorio = true; resolved = 'dark' })
+beforeEach(() => { resetFirebaseMock(); escritorio = true; resolved = 'dark'; localStorage.setItem('roncamotors_tutorial_visto', '1') })
 
 describe('Layout', () => {
   it('nav completa con secciones, marca y usuario; la ruta activa marcada', () => {

@@ -12,12 +12,16 @@ export default defineConfig({
       // 'prompt': la app avisa con un toast y el usuario decide cuándo recargar;
       // autoUpdate recargaba en medio de una venta.
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'Roncamotors',
         short_name: 'Roncamotors',
         description: 'Punto de Venta Roncamotors',
         theme_color: '#0f172a',
+        background_color: '#0f172a',
+        display: 'standalone',
+        start_url: '/',
+        lang: 'es',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -30,10 +34,10 @@ export default defineConfig({
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'pwa-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'maskable'
           }
         ]
       }
