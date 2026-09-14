@@ -52,6 +52,7 @@ export default defineConfig({
           firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
           react: ['react', 'react-dom', 'react-router-dom'],
           motion: ['framer-motion'],
+          recharts: ['recharts'],
         },
       },
     },
