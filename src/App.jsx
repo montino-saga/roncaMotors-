@@ -5,7 +5,6 @@ import Login from './pages/login/Login'
 import { VistaSkeleton } from './components/ui/Skeleton'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AvisoConexion } from './components/AvisoConexion'
-import { AlertaCaja } from './components/AlertaCaja'
 import { AvisoActualizacion } from './components/AvisoActualizacion'
 import NotFound from './pages/notFound/NotFound'
 
@@ -61,7 +60,6 @@ function Panel() {
                 mobileOffset={{ top: 64, right: 12, left: 12 }}
             />
             <AvisoConexion />
-            <AlertaCaja />
             <Layout>
                 <Vista key={pathname}>
                 <ErrorBoundary>

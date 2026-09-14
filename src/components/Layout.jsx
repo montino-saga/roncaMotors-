@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
     Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History,
     Globe, Lock, PanelLeft, PanelLeftClose, User, LogOut, Menu, Settings,
-    Search, Sun, Moon, Plus, FlaskConical, Receipt, Sparkles
+    Search, Sun, Moon, Plus, FlaskConical, Receipt, Sparkles, Bell
 } from "lucide-react";
 import {
     motion, MotionConfig, animate, useMotionValue, useSpring,
@@ -19,9 +19,11 @@ import { useAppearance } from "../context/AppearanceContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
 import { Novedades } from "./Novedades";
+import { Avisos } from "./Avisos";
 import { Tour } from "./Tour";
 import { PASOS_TOUR } from "../lib/tour";
 import { useNovedades } from "../hooks/useNovedades";
+import { useAvisos } from "../hooks/useAvisos";
 import { VERSION_ACTUAL } from "../lib/releases";
 
 const W_OPEN = 264;
@@ -138,6 +140,8 @@ export function Layout({ children }) {
     const isDesktop = useMediaQuery("(min-width: 768px)");
     const [paletaOpen, setPaletaOpen] = useState(false);
     const novedades = useNovedades();
+    const avisos = useAvisos();
+    const [avisosOpen, setAvisosOpen] = useState(false);
     const navItems = navSections.flatMap((s) => s.items);
 
     // Pestaña e historial del navegador con nombre de vista, no solo la marca.
@@ -454,6 +458,33 @@ export function Layout({ children }) {
 
                         <button
                             type="button"
+                            onClick={() => setAvisosOpen(true)}
+                            title={isDesktop && collapsed ? "Avisos" : undefined}
+                            aria-label={avisos.length ? `Avisos, ${avisos.length} pendiente${avisos.length > 1 ? "s" : ""}` : "Avisos"}
+                            className="w-full flex items-center h-11 px-[14px] rounded-xl overflow-hidden
+                                       transition-transform duration-100 ease-out active:scale-[0.98]
+                                       text-slate-300 hover:bg-white/[0.06] outline-none
+                                       focus-visible:ring-2 focus-visible:ring-primary/60"
+                        >
+                            <span className="relative shrink-0">
+                                <Bell className={cn("w-5 h-5", avisos.length ? "text-amber-300" : "text-slate-400")} />
+                                {avisos.length > 0 && (
+                                    <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-amber-400 text-slate-950
+                                                     text-[10px] font-bold leading-4 text-center ring-2 ring-slate-900">
+                                        {avisos.length}
+                                    </span>
+                                )}
+                            </span>
+                            <motion.span
+                                style={{ opacity: labelOpacity }}
+                                className="ml-3 text-sm font-medium whitespace-nowrap flex-1 text-left"
+                            >
+                                Avisos
+                            </motion.span>
+                        </button>
+
+                        <button
+                            type="button"
                             onClick={novedades.abrirLista}
                             data-tour="novedades"
                             title={isDesktop && collapsed ? "Novedades" : undefined}
@@ -541,6 +572,7 @@ export function Layout({ children }) {
                 {novedades.modo === "tutorial" && (
                     <Tour pasos={PASOS_TOUR} onFin={novedades.cerrar} onPaso={onPasoTour} />
                 )}
+                <Avisos abierto={avisosOpen} avisos={avisos} onCerrar={() => setAvisosOpen(false)} />
                 <Novedades
                     abierto={novedades.modo === "lista"}
                     versionVista={novedades.versionVista}
