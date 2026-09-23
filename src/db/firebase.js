@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth";
+import { getFunctions } from "firebase/functions";
 
 // La configuración se lee desde variables de entorno (.env, prefijo VITE_).
 // Copia .env.example como .env y completa los valores.
@@ -34,5 +35,6 @@ const db = initializeFirestore(app, {
 
 const storage = getStorage(app);
 const auth = getAuth(app);
+const functions = getFunctions(app, "southamerica-east1");
 
-export { db, storage, auth };
+export { db, storage, auth, functions };

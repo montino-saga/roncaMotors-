@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { collection, doc, getDoc, getDocs, query, orderBy, Timestamp, writeBatch, increment } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, orderBy, Timestamp, writeBatch, increment, updateDoc } from 'firebase/firestore'
 import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
@@ -27,11 +27,18 @@ import {
     ShoppingBag, 
     ChevronLeft, 
     ChevronRight, 
-    Trash2, 
-    AlertTriangle 
+    Trash2,
+    AlertTriangle,
+    Car,
+    Pencil,
+    Plus
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCLP, cn } from '../../lib/utils'
+import { VehiculoForm } from '../../components/VehiculoForm'
+import { ClienteForm } from '../../components/ClienteForm'
+import { CAMPOS_VEHICULO, limpiarVehiculo, resumenVehiculo, valorVehiculo } from '../../lib/vehiculo'
+import { invalidarClientes } from '../../lib/clientes'
 
 function ClientDetails() {
     const { id } = useParams()
@@ -61,6 +68,44 @@ function ClientDetails() {
     const [productToReturn, setProductToReturn] = useState(null)
     const [quantityToReturn, setQuantityToReturn] = useState(1)
     const [isDeleting, setIsDeleting] = useState(false)
+
+    const [vehiculoAbierto, setVehiculoAbierto] = useState(false)
+    const [guardandoVehiculo, setGuardandoVehiculo] = useState(false)
+    const [clienteAbierto, setClienteAbierto] = useState(false)
+    const [guardandoCliente, setGuardandoCliente] = useState(false)
+
+    const guardarCliente = async (datos) => {
+        setGuardandoCliente(true)
+        try {
+            await updateDoc(doc(db, 'clients', id), datos)
+            setClient((prev) => ({ ...prev, ...datos }))
+            invalidarClientes()
+            toast.success('Cliente actualizado')
+            setClienteAbierto(false)
+        } catch (error) {
+            console.error('Error actualizando cliente:', error)
+            toast.error('No se pudieron guardar los cambios')
+        } finally {
+            setGuardandoCliente(false)
+        }
+    }
+
+    const guardarVehiculo = async (datos) => {
+        setGuardandoVehiculo(true)
+        try {
+            const vehiculo = limpiarVehiculo(datos)
+            await updateDoc(doc(db, 'clients', id), { vehiculo })
+            setClient((prev) => ({ ...prev, vehiculo }))
+            invalidarClientes()
+            toast.success(vehiculo ? 'Datos del vehículo guardados' : 'Datos del vehículo borrados')
+            setVehiculoAbierto(false)
+        } catch (error) {
+            console.error('Error guardando vehículo:', error)
+            toast.error('No se pudieron guardar los datos')
+        } finally {
+            setGuardandoVehiculo(false)
+        }
+    }
 
     const getLocalPrice = (prod) => Number(prod?.precioVentaLocal ?? prod?.precio ?? 0)
 
@@ -440,9 +485,18 @@ function ClientDetails() {
                                     Cliente
                                 </span>
                                 <button
+                                    onClick={() => setClienteAbierto(true)}
+                                    className="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors shrink-0"
+                                    title="Editar Cliente"
+                                    aria-label="Editar Cliente"
+                                >
+                                    <Pencil className="w-4 h-4" />
+                                </button>
+                                <button
                                     onClick={() => setShowDeleteClientModal(true)}
                                     className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
                                     title="Eliminar Cliente"
+                                    aria-label="Eliminar Cliente"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
@@ -454,17 +508,18 @@ function ClientDetails() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3 lg:w-auto lg:min-w-[520px]">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:gap-3 lg:w-auto lg:min-w-[520px]">
                         {[
                             { Icon: Phone, label: 'Teléfono', value: client.phone, tone: 'bg-emerald-500/15 text-emerald-400' },
                             { Icon: IdCard, label: 'RUT', value: client.rut, tone: 'bg-purple-500/15 text-purple-400', mono: true },
+                            { Icon: Car, label: 'Patente', value: client.patente, tone: 'bg-amber-500/15 text-amber-400', mono: true },
                             { Icon: Mail, label: 'Correo', value: client.email, tone: 'bg-sky-500/15 text-sky-400' },
                         ].map(({ Icon, label, value, tone, mono }) => (
                             <div key={label} className="flex items-center gap-2.5 rounded-xl bg-slate-950/50 border border-white/10 px-3 py-2 min-w-0">
                                 <div className={cn("w-8 h-8 rounded-lg grid place-items-center shrink-0", tone)}>
                                     <Icon className="w-4 h-4" />
                                 </div>
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                     <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">{label}</p>
                                     <p className={cn("text-sm truncate", value ? "text-white font-medium" : "text-slate-500", mono && value && "font-mono")} title={value || undefined}>
                                         {value || 'No registrado'}
@@ -484,6 +539,44 @@ function ClientDetails() {
                         </div>
                     </Button>
                 </div>
+            </Card>
+
+            <Card className="p-4 bg-slate-900/50 border-white/10 shrink-0">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Car className="w-4 h-4 text-amber-400 shrink-0" />
+                        <h3 className="font-bold text-white truncate">
+                            {client.vehiculo ? resumenVehiculo(client.vehiculo) : 'Vehículo'}
+                        </h3>
+                    </div>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setVehiculoAbierto(true)}
+                        className="h-9 px-3 text-sm inline-flex items-center gap-1.5 shrink-0"
+                    >
+                        {client.vehiculo ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                        {client.vehiculo ? 'Editar' : 'Agregar datos'}
+                    </Button>
+                </div>
+                {client.vehiculo ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                        {CAMPOS_VEHICULO.filter(({ clave }) => client.vehiculo[clave]).map(({ clave, etiqueta, mono }) => (
+                            <div key={clave} className="rounded-lg bg-slate-950/50 border border-white/10 px-3 py-2 min-w-0">
+                                <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">{etiqueta}</p>
+                                <p
+                                    className={cn("text-sm text-white font-medium truncate", mono && "font-mono")}
+                                    title={String(client.vehiculo[clave])}
+                                >
+                                    {valorVehiculo(client.vehiculo, clave)}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-slate-400">
+                        Sin datos del vehículo. Agrégalos a mano: marca, modelo, año, kilometraje, VIN.
+                    </p>
+                )}
             </Card>
 
             {/* Dashboard Cards */}
@@ -989,6 +1082,23 @@ function ClientDetails() {
                     </div>
                 </div>
             </Modal>
+
+            <ClienteForm
+                isOpen={clienteAbierto}
+                onClose={() => setClienteAbierto(false)}
+                cliente={client}
+                onGuardar={guardarCliente}
+                guardando={guardandoCliente}
+            />
+
+            <VehiculoForm
+                isOpen={vehiculoAbierto}
+                onClose={() => setVehiculoAbierto(false)}
+                patente={client.patente}
+                vehiculo={client.vehiculo}
+                onGuardar={guardarVehiculo}
+                guardando={guardandoVehiculo}
+            />
         </div>
     )
 }

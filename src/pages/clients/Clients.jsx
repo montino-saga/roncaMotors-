@@ -9,10 +9,12 @@ import { invalidarClientes } from '../../lib/clientes'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
-import { Search, Plus, User, Phone, Mail, IdCard, Users, AlertCircle, DollarSign, Wallet } from 'lucide-react'
+import { Search, Plus, User, Phone, Mail, IdCard, Car, Users, AlertCircle, DollarSign, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCLP, cn } from '../../lib/utils'
 import { formatRut, validarRut } from '../../lib/rut'
+import { formatPatente, limpiarPatente, validarPatente } from '../../lib/patente'
+import { resumenVehiculo } from '../../lib/vehiculo'
 
 function Clients() {
     const navigate = useNavigate()
@@ -34,9 +36,12 @@ function Clients() {
     const [newClientEmail, setNewClientEmail] = useState('')
     const [newClientRut, setNewClientRut] = useState('')
     const [rutTocado, setRutTocado] = useState(false)
+    const [newClientPatente, setNewClientPatente] = useState('')
+    const [patenteTocada, setPatenteTocada] = useState(false)
     const [creatingClient, setCreatingClient] = useState(false)
 
     const rutInvalido = newClientRut.trim() !== '' && !validarRut(newClientRut)
+    const patenteInvalida = newClientPatente.trim() !== '' && !validarPatente(newClientPatente)
 
     const fetchClients = async () => {
         setLoading(true)
@@ -68,6 +73,11 @@ function Clients() {
             toast.error('RUT inválido')
             return
         }
+        if (patenteInvalida) {
+            setPatenteTocada(true)
+            toast.error('Patente inválida')
+            return
+        }
 
         setCreatingClient(true)
         try {
@@ -76,6 +86,7 @@ function Clients() {
                 phone: newClientPhone,
                 email: newClientEmail.trim(),
                 rut: formatRut(newClientRut),
+                patente: formatPatente(newClientPatente),
                 currentDebt: 0,
                 createdAt: Timestamp.now()
             })
@@ -87,6 +98,8 @@ function Clients() {
             setNewClientEmail('')
             setNewClientRut('')
             setRutTocado(false)
+            setNewClientPatente('')
+            setPatenteTocada(false)
             fetchClients()
         } catch (error) {
             console.error("Error creating client:", error)
@@ -100,7 +113,8 @@ function Clients() {
         client.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         client.phone?.includes(searchTerm) ||
         client.rut?.replace(/\./g, '').includes(searchTerm.replace(/\./g, '').toUpperCase()) ||
-        client.email?.toLowerCase().includes(searchTerm.toLowerCase())
+        client.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (searchTerm.trim() !== '' && limpiarPatente(client.patente).includes(limpiarPatente(searchTerm)))
     )
 
     const deudores = clients.filter(c => (c.currentDebt || 0) > 0)
@@ -156,7 +170,7 @@ function Clients() {
                     <Input
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Buscar por nombre, teléfono, RUT o correo..."
+                        placeholder="Buscar por nombre, teléfono, RUT, patente o correo..."
                         className="pl-9 bg-slate-900/50"
                     />
                 </div>
@@ -207,6 +221,17 @@ function Clients() {
                                             <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
                                                 <IdCard className="w-3 h-3" />
                                                 {client.rut}
+                                            </div>
+                                        )}
+                                        {client.patente && (
+                                            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+                                                <Car className="w-3 h-3" />
+                                                {client.patente}
+                                                {client.vehiculo && (
+                                                    <span className="font-sans text-slate-500 truncate">
+                                                        · {resumenVehiculo(client.vehiculo)}
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -273,15 +298,32 @@ function Clients() {
                             )}
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300">Correo (Opcional)</label>
+                            <label className="text-sm font-medium text-slate-300">Patente (Opcional)</label>
                             <Input
-                                type="email"
-                                inputMode="email"
-                                value={newClientEmail}
-                                onChange={(e) => setNewClientEmail(e.target.value)}
-                                placeholder="cliente@correo.cl"
+                                value={newClientPatente}
+                                onChange={(e) => setNewClientPatente(e.target.value.replace(/[^0-9a-zA-Z-]/g, '').toUpperCase())}
+                                onBlur={() => {
+                                    setNewClientPatente(formatPatente(newClientPatente))
+                                    setPatenteTocada(true)
+                                }}
+                                placeholder="ABCD-12"
+                                className={cn("font-mono uppercase", patenteTocada && patenteInvalida && "border-red-500/60 focus:ring-red-500/40")}
+                                aria-invalid={patenteTocada && patenteInvalida}
                             />
+                            {patenteTocada && patenteInvalida && (
+                                <p className="text-xs text-red-400">Patente inválida</p>
+                            )}
                         </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-300">Correo (Opcional)</label>
+                        <Input
+                            type="email"
+                            inputMode="email"
+                            value={newClientEmail}
+                            onChange={(e) => setNewClientEmail(e.target.value)}
+                            placeholder="cliente@correo.cl"
+                        />
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
                         <Button type="button" variant="secondary" onClick={() => setIsCreateModalOpen(false)}>Cancelar</Button>
