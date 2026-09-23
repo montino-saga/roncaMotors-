@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Wrench, ArrowUpCircle, Plus, Route } from "lucide-react";
+import { ChevronDown, Wrench, ArrowUpCircle, Plus, Route, PlayCircle } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
 import { cn } from "../lib/utils";
@@ -25,7 +25,7 @@ function Etiqueta({ tipo }) {
     );
 }
 
-function Release({ r, nueva, abierta, onToggle }) {
+function Release({ r, nueva, abierta, onToggle, onVerNovedad }) {
     return (
         <li className="relative pl-5 border-l border-white/10">
             <span className={cn(
@@ -50,17 +50,28 @@ function Release({ r, nueva, abierta, onToggle }) {
                 <p className="w-full text-sm text-slate-300">{r.titulo}</p>
             </button>
             {abierta && (
-                <ul className="mt-3 space-y-3">
-                    {r.cambios.map((c) => (
-                        <li key={c.titulo} className="flex gap-3">
-                            <Etiqueta tipo={c.tipo} />
-                            <div className="min-w-0">
-                                <p className="text-sm font-medium text-white leading-tight">{c.titulo}</p>
-                                <p className="text-sm text-slate-300/80 mt-0.5">{c.detalle}</p>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
+                <>
+                    <ul className="mt-3 space-y-3">
+                        {r.cambios.map((c) => (
+                            <li key={c.titulo} className="flex gap-3">
+                                <Etiqueta tipo={c.tipo} />
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium text-white leading-tight">{c.titulo}</p>
+                                    <p className="text-sm text-slate-300/80 mt-0.5">{c.detalle}</p>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                    {r.tour && (
+                        <Button
+                            variant="secondary"
+                            onClick={() => onVerNovedad(r.tour)}
+                            className="mt-3 h-9 inline-flex items-center gap-2 text-sm"
+                        >
+                            <PlayCircle className="w-4 h-4" /> Ver cómo funciona
+                        </Button>
+                    )}
+                </>
             )}
         </li>
     );
@@ -68,7 +79,7 @@ function Release({ r, nueva, abierta, onToggle }) {
 
 // Historial de versiones. Solo las no leídas vienen desplegadas: el resto se
 // abre a demanda, para no obligar a leerlo todo.
-export function Novedades({ abierto, versionVista, onCerrar, onRepetirTutorial }) {
+export function Novedades({ abierto, versionVista, onCerrar, onRepetirTutorial, onVerNovedad }) {
     const idxVista = RELEASES.findIndex((r) => r.version === versionVista);
     const esNueva = (idx) => (idxVista === -1 ? idx === 0 : idx < idxVista);
     const [abiertas, setAbiertas] = useState(() => new Set(RELEASES.filter((_, i) => esNueva(i)).map((r) => r.version)));
@@ -87,7 +98,7 @@ export function Novedades({ abierto, versionVista, onCerrar, onRepetirTutorial }
 
             <ol className="space-y-5">
                 {RELEASES.map((r, idx) => (
-                    <Release key={r.version} r={r} nueva={esNueva(idx)} abierta={abiertas.has(r.version)} onToggle={() => toggle(r.version)} />
+                    <Release key={r.version} r={r} nueva={esNueva(idx)} abierta={abiertas.has(r.version)} onToggle={() => toggle(r.version)} onVerNovedad={onVerNovedad} />
                 ))}
             </ol>
         </Modal>

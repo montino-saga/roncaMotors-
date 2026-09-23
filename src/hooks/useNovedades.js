@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { VERSION_ACTUAL } from "../lib/releases";
+import { PASOS_TOUR } from "../lib/tour";
 
 const KEY_TUTORIAL = "roncamotors_tutorial_visto";
 const KEY_VERSION = "roncamotors_version_vista";
@@ -15,14 +16,17 @@ export function useNovedades() {
     // Última versión leída antes de abrir la lista: así la lista sabe cuáles
     // etiquetar como nuevas aunque ya se hayan marcado como vistas.
     const [versionVista, setVersionVista] = useState(() => leer(KEY_VERSION));
+    // Pasos del recorrido activo: el completo por defecto, o el mini-tour de un parche.
+    const [pasos, setPasos] = useState(PASOS_TOUR);
 
     const marcarLeida = () => { guardar(KEY_VERSION, VERSION_ACTUAL); setPendiente(false); };
-    const abrirTutorial = () => setModo("tutorial");
+    const abrirTutorial = () => { setPasos(PASOS_TOUR); setModo("tutorial"); };
+    const verNovedad = (pasosParche) => { setPasos(pasosParche); setModo("mini"); };
     const abrirLista = () => { setVersionVista(leer(KEY_VERSION)); setModo("lista"); marcarLeida(); };
     const cerrar = () => {
         if (modo === "tutorial") { guardar(KEY_TUTORIAL, "1"); marcarLeida(); }
         setModo(null);
     };
 
-    return { modo, pendiente, versionVista, abrirTutorial, abrirLista, cerrar };
+    return { modo, pasos, pendiente, versionVista, abrirTutorial, verNovedad, abrirLista, cerrar };
 }

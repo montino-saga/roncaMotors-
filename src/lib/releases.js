@@ -1,6 +1,7 @@
 // Historial de versiones que ve el cliente. La primera entrada es la versión
 // actual: al desplegar, añadir una nueva arriba y la app avisa sola.
 // tipo: 'nuevo' | 'mejora' | 'arreglo'
+// tour (opcional): pasos de un mini-recorrido que explica el parche en pantalla.
 
 export const RELEASES = [
     {
@@ -12,6 +13,14 @@ export const RELEASES = [
             { tipo: 'nuevo', titulo: 'Datos del vehículo', detalle: 'Dentro de la ficha del cliente hay una tarjeta "Vehículo". Toca "Agregar datos" y completa marca, modelo, año, tipo, color, kilometraje, VIN y más. Quedan guardados junto al cliente.' },
             { tipo: 'nuevo', titulo: 'Traer datos por patente', detalle: 'En esa misma tarjeta, el botón "Traer datos" busca la patente y rellena solo marca, modelo, año y motor. El resto lo completas a mano. Si vuelves a consultar la misma patente, no gasta una nueva búsqueda.' },
             { tipo: 'nuevo', titulo: 'Editar cliente', detalle: 'La ficha ahora tiene un lápiz junto al nombre para corregir teléfono, RUT, patente o correo sin tener que crear el cliente de nuevo.' },
+        ],
+        tour: [
+            { ruta: '/clientes', target: '[data-tour="clientes-nuevo"]', lado: 'bottom',
+              titulo: 'Patente al crear', texto: 'Al dar de alta un cliente, ahora puedes anotar la patente de su vehículo. La app la valida y le da formato sola.' },
+            { ruta: '/clientes', target: '[data-tour="clientes-buscar"]', lado: 'bottom',
+              titulo: 'Buscar por patente', texto: 'Escribe una patente aquí y encuentras a su dueño al instante, además de por nombre, RUT o correo.' },
+            { ruta: '/clientes', target: '[data-tour="clientes-lista"]', lado: 'top',
+              titulo: 'Vehículo y edición', texto: 'Entra a un cliente: dentro tienes la tarjeta del vehículo (marca, modelo, año, VIN…) y un lápiz junto al nombre para editar sus datos.' },
         ],
     },
     {

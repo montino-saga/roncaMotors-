@@ -137,6 +137,7 @@ function Clients() {
                     <p className="text-slate-400 text-sm hidden sm:block">Gestiona perfiles y cuentas corrientes.</p>
                 </div>
                 <Button
+                    data-tour="clientes-nuevo"
                     onClick={() => setIsCreateModalOpen(true)}
                     className="h-11 px-4 sm:px-5 inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 font-bold"
                 >
@@ -164,7 +165,7 @@ function Clients() {
                 ))}
             </div>
 
-            <div className="flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-xl">
+            <div data-tour="clientes-buscar" className="flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-xl">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <Input
@@ -176,7 +177,7 @@ function Clients() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div data-tour="clientes-lista" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {loading ? (
                     mostrarSkeleton && Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} lines={2} className="p-6" />)
                 ) : filteredClients.length === 0 ? (

@@ -21,7 +21,6 @@ import { CommandPalette } from "./CommandPalette";
 import { Novedades } from "./Novedades";
 import { Avisos } from "./Avisos";
 import { Tour } from "./Tour";
-import { PASOS_TOUR } from "../lib/tour";
 import { useNovedades } from "../hooks/useNovedades";
 import { useAvisos } from "../hooks/useAvisos";
 import { VERSION_ACTUAL } from "../lib/releases";
@@ -569,8 +568,8 @@ export function Layout({ children }) {
                 </motion.div>
 
                 <CommandPalette open={paletaOpen} onClose={() => setPaletaOpen(false)} navItems={navItems} />
-                {novedades.modo === "tutorial" && (
-                    <Tour pasos={PASOS_TOUR} onFin={novedades.cerrar} onPaso={onPasoTour} />
+                {(novedades.modo === "tutorial" || novedades.modo === "mini") && (
+                    <Tour pasos={novedades.pasos} onFin={novedades.cerrar} onPaso={onPasoTour} />
                 )}
                 <Avisos abierto={avisosOpen} avisos={avisos} onCerrar={() => setAvisosOpen(false)} />
                 <Novedades
@@ -578,6 +577,7 @@ export function Layout({ children }) {
                     versionVista={novedades.versionVista}
                     onCerrar={novedades.cerrar}
                     onRepetirTutorial={novedades.abrirTutorial}
+                    onVerNovedad={novedades.verNovedad}
                 />
             </div>
         </MotionConfig>
