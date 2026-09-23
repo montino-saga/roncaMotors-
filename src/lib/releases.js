@@ -4,6 +4,17 @@
 
 export const RELEASES = [
     {
+        version: '1.5',
+        fecha: '2026-09-23',
+        titulo: 'Vehículo del cliente y edición de ficha',
+        cambios: [
+            { tipo: 'nuevo', titulo: 'Patente del cliente', detalle: 'Al crear un cliente puedes anotar la patente de su vehículo. La app la valida y la deja con formato (ABCD-12). Después puedes buscar a un cliente escribiendo su patente en el buscador.' },
+            { tipo: 'nuevo', titulo: 'Datos del vehículo', detalle: 'Dentro de la ficha del cliente hay una tarjeta "Vehículo". Toca "Agregar datos" y completa marca, modelo, año, tipo, color, kilometraje, VIN y más. Quedan guardados junto al cliente.' },
+            { tipo: 'nuevo', titulo: 'Traer datos por patente', detalle: 'En esa misma tarjeta, el botón "Traer datos" busca la patente y rellena solo marca, modelo, año y motor. El resto lo completas a mano. Si vuelves a consultar la misma patente, no gasta una nueva búsqueda.' },
+            { tipo: 'nuevo', titulo: 'Editar cliente', detalle: 'La ficha ahora tiene un lápiz junto al nombre para corregir teléfono, RUT, patente o correo sin tener que crear el cliente de nuevo.' },
+        ],
+    },
+    {
         version: '1.4',
         fecha: '2026-09-12',
         titulo: 'Tutorial, novedades y app instalable',
