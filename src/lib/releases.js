@@ -20,7 +20,7 @@ export const RELEASES = [
             { ruta: '/clientes', target: '[data-tour="clientes-buscar"]', lado: 'bottom',
               titulo: 'Buscar por patente', texto: 'Escribe una patente aquí y encuentras a su dueño al instante, además de por nombre, RUT o correo.' },
             { ruta: '/clientes', target: '[data-tour="clientes-lista"]', lado: 'top',
-              titulo: 'Vehículo y edición', texto: 'Entra a un cliente: dentro tienes la tarjeta del vehículo (marca, modelo, año, VIN…) y un lápiz junto al nombre para editar sus datos.' },
+              titulo: 'Vehículo y edición', texto: 'Entra a cualquier cliente: dentro tienes una tarjeta "Vehículo" para agregar los datos del auto (marca, modelo, año, VIN…) a mano o traerlos por la patente, y un lápiz junto al nombre para editar la ficha.' },
         ],
     },
     {
