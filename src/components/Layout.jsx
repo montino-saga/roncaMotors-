@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
     Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History,
     Globe, Lock, PanelLeft, PanelLeftClose, User, LogOut, Menu, Settings,
-    Search, Sun, Moon, Plus, FlaskConical, Receipt, Sparkles, Bell
+    Search, Sun, Moon, Plus, FlaskConical, Receipt, Sparkles, Bell, Users
 } from "lucide-react";
 import {
     motion, MotionConfig, animate, useMotionValue, useSpring,
@@ -24,6 +24,7 @@ import { Tour } from "./Tour";
 import { useNovedades } from "../hooks/useNovedades";
 import { useAvisos } from "../hooks/useAvisos";
 import { VERSION_ACTUAL } from "../lib/releases";
+import { rolDe } from "../lib/usuarios";
 
 const W_OPEN = 264;
 const W_SHUT = 76;
@@ -73,6 +74,7 @@ const navSections = [
         title: "Sistema",
         items: [
             { href: "/configuracion", label: "Configuración", icon: Settings },
+            { href: "/usuarios", label: "Usuarios", icon: Users },
         ]
     }
 ];
@@ -133,7 +135,7 @@ function NavItem({ item, active, showTooltip, labelOpacity }) {
 export function Layout({ children }) {
     const location = useLocation();
     const { settings, loading } = useTheme();
-    const { user, logout } = useAuth();
+    const { user, perfil, logout } = useAuth();
     const { resolved, setMode } = useAppearance();
 
     const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -450,7 +452,7 @@ export function Layout({ children }) {
                         >
                             <div className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 ring-1 ring-white/20" />
                             <motion.div style={{ opacity: labelOpacity }} className="ml-3 min-w-0">
-                                <p className="text-sm font-medium text-white truncate">Administrador</p>
+                                <p className="text-sm font-medium text-white truncate">{rolDe(perfil?.rol).label}</p>
                                 <p className="text-xs text-slate-300/70 truncate">{user?.email}</p>
                             </motion.div>
                         </motion.div>

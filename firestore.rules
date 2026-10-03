@@ -63,6 +63,11 @@ service cloud.firestore {
       allow read, write: if esAdmin();
     }
 
+    // Perfil y rol de cada cuenta (id = uid de Auth). Roles aún sin aplicar.
+    match /usuarios/{uid} {
+      allow read, write: if esAdmin();
+    }
+
     match /settings/{id} {
       allow read, write: if esAdmin();
     }
