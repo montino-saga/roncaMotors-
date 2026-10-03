@@ -16,7 +16,7 @@ salesWeb/{id}                   ← pedidos de la landing pública
 cash_registers/{id}             ← sesiones de caja (apertura/cierre)
 gastos/{id}                     ← gastos del local
 usuarios/{uid}                  ← perfil y rol de cada cuenta de Auth
-vehiculos/{patente}             ← caché de consultas de patente (solo Cloud Function)
+vehiculos/{patente}             ← caché de consultas de patente (DESACTIVADA, sin escrituras)
 settings/global                 ← configuración y datos de la empresa (doc único)
 
 Storage: productos/{timestamp}-{nombreArchivo}   ← imágenes de productos
@@ -104,7 +104,7 @@ Clientes. Crea: Clients. Editan datos: ClientDetails (ClienteForm y VehiculoForm
 | `createdAt` | Timestamp | Fecha de creación |
 | `lastUpdated` | Timestamp? | Última modificación de la deuda (no existe hasta el primer movimiento) |
 
-Campos de `vehiculo` (todos **string**, incluso `anio` y `kilometraje`; se rellenan a mano o desde `consultarPatente`):
+Campos de `vehiculo` (todos **string**, incluso `anio` y `kilometraje`; hoy se rellenan solo a mano; `consultarPatente` está desactivada):
 
 `marca`, `modelo`, `anio`, `tipo`, `color`, `combustible`, `transmision`, `kilometraje`, `vin`, `motor`
 
@@ -187,21 +187,29 @@ Gastos del local (publicidad, arriendo, etc.). Crea/edita/elimina: Gastos. Se co
 
 ## Colección `usuarios`
 
-Perfil y rol de cada cuenta de Firebase Auth. **ID del doc = `uid` de Auth.** Las cuentas se crean a mano en Auth; el doc se crea solo al iniciar sesión por primera vez (`registrarAcceso` en `src/lib/usuarios.js`). Lee/edita el rol: Usuarios. AuthContext escucha el doc propio y expone `perfil`.
+Perfil y rol de cada cuenta de Firebase Auth. **ID del doc = `uid` de Auth.** Dos formas de alta:
+- **Invitación** (vista Usuarios, solo desarrollador): la Cloud Function `crearUsuario` crea la cuenta en Auth **sin contraseña** y este doc con el rol elegido; luego el cliente llama `sendPasswordResetEmail` y ese correo hace de invitación para crear la contraseña.
+- **Cuenta creada a mano en Auth**: el doc se crea al primer inicio de sesión (`registrarAcceso` en `src/lib/usuarios.js`) con rol `admin`.
+
+Lee/edita el rol: Usuarios. AuthContext escucha el doc propio y expone `perfil`.
 
 | Campo | Tipo | Descripción |
 |---|---|---|
 | `email` | string | Email de la cuenta (se refresca en cada acceso) |
-| `nombre` | string | `displayName` de Auth al crearse (normalmente `''`) |
+| `nombre` | string | Nombre dado al invitar, o `displayName` de Auth al primer acceso (puede ser `''`) |
 | `rol` | string | `'desarrollador'` \| `'admin'` \| `'lector'`. Inicial: `'admin'`. Un valor desconocido se trata como `'admin'` |
-| `creadoEn` | Timestamp | Primer acceso registrado |
-| `ultimoAcceso` | Timestamp | Último inicio de sesión / recarga con sesión abierta |
+| `creadoEn` | Timestamp | Fecha de invitación o del primer acceso |
+| `ultimoAcceso` | Timestamp? | Último inicio de sesión / recarga con sesión abierta. **No existe** mientras la invitación está pendiente (la vista muestra "Invitación pendiente" y permite reenviar) |
+| `invitadoPor` | string? | `uid` del desarrollador que invitó. Solo en cuentas creadas por invitación |
 
-> Los roles **aún no restringen nada**: ni la UI ni las rules los aplican.
+> Permisos: `desarrollador` y `admin` tienen acceso total; la única diferencia es que solo `desarrollador` ve y gestiona `usuarios` (vista `/usuarios`, ítem del sidebar y rules). `lector` ve todas las vistas (salvo Usuarios) pero no crea, edita ni borra nada: solo puede registrar su propio acceso en `usuarios/{uid}`.
+> Nadie puede cambiar su propio rol ni darse de alta como algo distinto de `admin`. El primer `desarrollador` se asigna a mano desde la consola de Firebase.
 
 ---
 
 ## Colección `vehiculos`
+
+> **Desactivada**: `consultarPatente` está comentada en `functions/index.js` (no hay API key de Boostr). La colección y su regla se mantienen para reactivarla.
 
 Caché de la Cloud Function `consultarPatente` (proveedor Boostr). **ID del doc = patente sin guion en mayúsculas** (`ABCD12`). Solo la escribe la función (Admin SDK); el panel tiene lectura. Vigencia: 180 días desde `consultadoEn`.
 
@@ -242,7 +250,7 @@ Un solo documento: `settings/global`. Lo lee ThemeContext con listener en tiempo
 
 | Ruta | Contenido |
 |---|---|
-| `productos/{Date.now()}-{nombreArchivo}` | Imágenes de productos, subidas comprimidas (máx. 5 MB, solo `image/*` según reglas). La URL de descarga se guarda en `productos.imagenProducto` |
+| `productos/{Date.now()}-{nombreArchivo}` | Imágenes de productos, subidas comprimidas (máx. 5 MB, solo `image/*` según reglas). La URL de descarga se guarda en `productos.imagenProducto`. Lectura pública; subir: con sesión y no `lector` (`storage.rules` lee el rol desde Firestore) |
 
 ---
 
@@ -250,22 +258,23 @@ Un solo documento: `settings/global`. Lo lee ThemeContext con listener en tiempo
 
 | Ruta | Lectura | Escritura |
 |---|---|---|
-| `productos`, `clients` (+`movements`), `sales`, `cash_registers`, `gastos`, `usuarios`, `settings` | con sesión | con sesión |
+| `productos`, `clients` (+`movements`), `sales`, `cash_registers`, `gastos`, `settings` | con sesión | con sesión y no `lector` |
+| `usuarios/{uid}` | el propio doc; todos si es `desarrollador` | `create`: solo el propio, con `rol: 'admin'`. `update`: el propio sin tocar `rol`, u otro si es `desarrollador`. `delete`: `desarrollador`, no a sí mismo |
 | `vehiculos` | con sesión | nadie (solo Admin SDK) |
-| `salesWeb` | con sesión | `create`: público con validación (`pedidoWebValido`); `update`/`delete`: con sesión |
+| `salesWeb` | con sesión | `create`: público con validación (`pedidoWebValido`); `update`/`delete`: con sesión y no `lector` |
 | resto | nadie | nadie |
 
-"Con sesión" = `request.auth != null`. No hay whitelist: el registro público de Auth debe estar deshabilitado en la consola. Las rules del repo **no se aplican hasta** `firebase deploy --only firestore:rules`.
+"Con sesión" = `request.auth != null`. `desarrollador` = con sesión y `usuarios/{request.auth.uid}.rol == 'desarrollador'` (`esDesarrollador()`). "No `lector`" = con sesión y el rol no es `'lector'`; sin doc de perfil cuenta como admin (`puedeEscribir()`). Ambas son espejo de las funciones homónimas en `src/lib/usuarios.js`. No hay whitelist: el registro público de Auth debe estar deshabilitado en la consola. Las rules del repo **no se aplican hasta** `firebase deploy --only firestore:rules`.
 
 ---
 
 ## Relaciones y observaciones
 
 - `sales.idCliente` → doc de `clients`; `movements.saleId` → doc de `sales` (relación espejo: cada fiado/abono existe en ambos lados y el código los mantiene sincronizados manualmente al editar/eliminar o cambiar el método de pago).
-- `usuarios/{uid}` ↔ cuenta de Firebase Auth con el mismo `uid`. `gastos.userId` y `cash_registers.userId` apuntan a ese `uid`.
+- `usuarios/{uid}` ↔ cuenta de Firebase Auth con el mismo `uid`. `usuarios.invitadoPor` → otro `usuarios/{uid}`. `gastos.userId` y `cash_registers.userId` apuntan a ese `uid`.
 - `vehiculos/{patente}` ↔ `clients.patente` sin guion. La ficha copia los datos a `clients.vehiculo`; la caché no se vuelve a leer después.
 - Las búsquedas de productos desde ventas/devoluciones se hacen por `sales.productos[].idProducto` → `productos.idProducto` (campo de negocio, no el ID del documento).
 - **Denormalización intencional**: nombre/precios del producto y nombre del cliente se copian dentro de la venta para que el historial sea inmutable.
 - `precioProducto` es redundante (siempre = `precioVentaLocal`); se mantiene por compatibilidad. Si algún día lo eliminas, revisa `precioLista()` en `src/lib/descuentos.js`, que hace fallback a él.
-- `sales.idUsuario` sigue hardcodeado; debería tomar `auth.currentUser.uid` cuando los roles se apliquen.
+- `sales.idUsuario` sigue hardcodeado; debería tomar `auth.currentUser.uid`.
 - No hay índices compuestos declarados en el repo (no existe `firestore.indexes.json`); las consultas actuales usan índices simples automáticos.

@@ -6,8 +6,12 @@ import { MemoryRouter } from 'react-router-dom'
 import { firestoreMock, escrituras, coleccionesFake, resetFirebaseMock } from '../../../test/firebaseMock'
 
 vi.mock('firebase/firestore', () => firestoreMock)
-vi.mock('../../../db/firebase', () => ({ db: {}, auth: {}, storage: {} }))
+vi.mock('../../../db/firebase', () => ({ db: {}, auth: {}, storage: {}, functions: {} }))
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }))
+const llamar = vi.fn(async () => ({ data: { uid: 'n9' } }))
+const resetMail = vi.fn(async () => {})
+vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn(() => llamar) }))
+vi.mock('firebase/auth', () => ({ sendPasswordResetEmail: (...a) => resetMail(...a) }))
 vi.mock('../../../context/AuthContext', () => ({ useAuth: () => ({ user: { uid: 'u1' } }) }))
 import Usuarios from '../Usuarios'
 import { registrarAcceso } from '../../../lib/usuarios'
@@ -15,7 +19,7 @@ import { registrarAcceso } from '../../../lib/usuarios'
 beforeEach(() => {
   resetFirebaseMock()
   coleccionesFake.usuarios = [
-    { id: 'u1', email: 'yo@taller.cl', rol: 'desarrollador' },
+    { id: 'u1', email: 'yo@taller.cl', rol: 'desarrollador', ultimoAcceso: { toDate: () => new Date() } },
     { id: 'u2', email: 'caja@taller.cl', nombre: 'Caja', rol: 'lector' },
     { id: 'u3', email: 'viejo@taller.cl' },   // sin rol: cae en el inicial
   ]
@@ -35,6 +39,27 @@ describe('Usuarios', () => {
     render(<MemoryRouter><Usuarios /></MemoryRouter>)
     await user.selectOptions(await screen.findByLabelText('Rol de caja@taller.cl'), 'admin')
     await waitFor(() => expect(escrituras.updates).toContainEqual({ ref: 'usuarios/u2', data: { rol: 'admin' } }))
+  })
+})
+
+describe('Usuarios: invitar', () => {
+  it('crea la cuenta con el rol elegido y manda el correo para crear contraseña', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Usuarios /></MemoryRouter>)
+    await user.click(await screen.findByRole('button', { name: /Invitar/ }))
+    await user.type(screen.getByPlaceholderText('nombre@gmail.com'), ' Nuevo@Gmail.com ')
+    await user.click(screen.getByRole('radio', { name: /Administrador/ }))
+    await user.click(screen.getByRole('button', { name: /Enviar invitación/ }))
+    await waitFor(() => expect(resetMail).toHaveBeenCalledWith({}, 'nuevo@gmail.com'))
+    expect(llamar).toHaveBeenCalledWith({ email: 'nuevo@gmail.com', nombre: '', rol: 'admin' })
+  })
+
+  it('cuentas sin primer acceso muestran invitación pendiente y se puede reenviar', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Usuarios /></MemoryRouter>)
+    expect(await screen.findAllByText('Invitación pendiente')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Reenviar invitación a caja@taller.cl' }))
+    await waitFor(() => expect(resetMail).toHaveBeenCalledWith({}, 'caja@taller.cl'))
   })
 })
 

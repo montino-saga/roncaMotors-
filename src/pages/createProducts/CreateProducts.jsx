@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePersistedState } from '../../hooks/usePersistedState'
+import { usePermisos } from '../../hooks/usePermisos'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
@@ -183,6 +184,7 @@ const GANANCIA_INICIAL = {
 }
 
 function CreateProducts() {
+  const { soloLectura } = usePermisos()
   const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
   const idRef = useRef(null)
@@ -322,6 +324,7 @@ function CreateProducts() {
 
   return (
     <form onSubmit={handleSubmit} className="page-fit flex flex-col">
+      <fieldset disabled={soloLectura} className="contents">
       <div className="mb-4 tall:mb-6 shrink-0">
         <h2 className="text-lg sm:text-2xl font-bold text-white tracking-[-0.01em] truncate">Crear Producto</h2>
         <p className="text-slate-400 text-sm hidden sm:block">Nuevo item para el inventario.</p>
@@ -349,6 +352,7 @@ function CreateProducts() {
                 onImageUploaded={(url) => setNuevoProducto(prev => ({ ...prev, imagenProducto: url }))}
                 currentImage={nuevoProducto.imagenProducto}
                 className="absolute inset-0 w-full h-full object-contain"
+                disabled={soloLectura}
               />
             </div>
             <p className="text-[11px] text-center text-slate-500 mt-2 shrink-0">
@@ -549,7 +553,7 @@ function CreateProducts() {
           </div>
         </div>
       </div>
-
+      </fieldset>
     </form>
   )
 }

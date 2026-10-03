@@ -10,9 +10,11 @@ import { toast } from 'sonner'
 import { Lock, Unlock, DollarSign, TrendingUp, TrendingDown, History, AlertTriangle, Trash2 } from 'lucide-react'
 import { Skeleton, SkeletonCard, SkeletonKpis, SkeletonHeader } from '../../components/ui/Skeleton'
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
+import { usePermisos, TITULO_SOLO_LECTURA } from '../../hooks/usePermisos'
 import { useAuth } from '../../context/AuthContext'
 
 function CashClose() {
+    const { soloLectura } = usePermisos()
     const { user } = useAuth()
     const [loading, setLoading] = useState(true)
     const mostrarSkeleton = useDelayedLoading(loading)
@@ -271,7 +273,8 @@ function CashClose() {
                     <Button 
                         className="w-full h-12 text-lg bg-emerald-600 hover:bg-emerald-500"
                         onClick={handleOpenRegister}
-                        disabled={processing}
+                        disabled={soloLectura || processing}
+                        title={soloLectura ? TITULO_SOLO_LECTURA : undefined}
                     >
                         {processing ? 'Abriendo...' : 'Abrir Caja'}
                     </Button>
@@ -292,7 +295,7 @@ function CashClose() {
                         Turno iniciado: {session.openingTime.toDate().toLocaleString('es-CL')}
                     </p>
                 </div>
-                <div className="flex gap-3">
+                {!soloLectura && <div className="flex gap-3">
                     <Button variant="secondary" onClick={() => {
                         setMovementType('income')
                         setShowMovementModal(true)
@@ -305,7 +308,7 @@ function CashClose() {
                     }}>
                         - Gasto/Retiro
                     </Button>
-                </div>
+                </div>}
             </div>
 
             {/* Summary Cards */}
@@ -357,13 +360,13 @@ function CashClose() {
                                         )}>
                                             {mov.type === 'income' ? '+' : '-'}{formatCLP(mov.amount)}
                                         </span>
-                                        <button
+                                        {!soloLectura && <button
                                             onClick={() => setMovementToDelete(i)}
                                             className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                                             title="Eliminar movimiento"
                                         >
                                             <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        </button>}
                                     </div>
                                 </div>
                             ))
@@ -418,7 +421,8 @@ function CashClose() {
                         <Button 
                             className="w-full h-12 bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20"
                             onClick={initiateCloseRegister}
-                            disabled={processing || !closingCount}
+                            disabled={soloLectura || processing || !closingCount}
+                            title={soloLectura ? TITULO_SOLO_LECTURA : undefined}
                         >
                             {processing ? 'Cerrando...' : 'Realizar Cierre de Caja'}
                         </Button>

@@ -6,6 +6,7 @@ import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { SkeletonCard, SkeletonKpis, SkeletonRows } from '../../components/ui/Skeleton'
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
+import { usePermisos, TITULO_SOLO_LECTURA } from '../../hooks/usePermisos'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
@@ -41,6 +42,7 @@ import { CAMPOS_VEHICULO, limpiarVehiculo, resumenVehiculo, valorVehiculo } from
 import { invalidarClientes } from '../../lib/clientes'
 
 function ClientDetails() {
+    const { soloLectura } = usePermisos()
     const { id } = useParams()
     const navigate = useNavigate()
     useCatalogo()   // calienta el catálogo: restaurar stock no consulta al servidor
@@ -484,6 +486,7 @@ function ClientDetails() {
                                 <span className="text-xs font-normal text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/10 shrink-0">
                                     Cliente
                                 </span>
+                                {!soloLectura && <>
                                 <button
                                     onClick={() => setClienteAbierto(true)}
                                     className="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors shrink-0"
@@ -500,6 +503,7 @@ function ClientDetails() {
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
+                                </>}
                             </h2>
                             <p className="text-sm text-slate-400 flex items-center gap-1.5 mt-0.5">
                                 <Calendar className="w-3.5 h-3.5" />
@@ -531,6 +535,8 @@ function ClientDetails() {
 
                     <Button 
                         onClick={() => setIsPaymentModalOpen(true)}
+                        disabled={soloLectura}
+                        title={soloLectura ? TITULO_SOLO_LECTURA : undefined}
                         className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 px-8 lg:px-10 h-14 text-lg font-bold transition-all hover:scale-105 shrink-0"
                     >
                         <div className="flex items-center justify-center gap-2">
@@ -549,14 +555,14 @@ function ClientDetails() {
                             {client.vehiculo ? resumenVehiculo(client.vehiculo) : 'Vehículo'}
                         </h3>
                     </div>
-                    <Button
+                    {!soloLectura && <Button
                         variant="secondary"
                         onClick={() => setVehiculoAbierto(true)}
                         className="h-9 px-3 text-sm inline-flex items-center gap-1.5 shrink-0"
                     >
                         {client.vehiculo ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                         {client.vehiculo ? 'Editar' : 'Agregar datos'}
-                    </Button>
+                    </Button>}
                 </div>
                 {client.vehiculo ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
@@ -785,7 +791,7 @@ function ClientDetails() {
                                                     </td>
                                                 )}
                                                 <td className="px-4 py-3 text-right align-middle">
-                                                    <button
+                                                    {!soloLectura && <button
                                                         onClick={(e) => {
                                                             e.stopPropagation()
                                                             initiateDeleteMovement(mov)
@@ -794,7 +800,7 @@ function ClientDetails() {
                                                         title="Eliminar Movimiento"
                                                     >
                                                         <Trash2 className="w-4 h-4" />
-                                                    </button>
+                                                    </button>}
                                                 </td>
                                             </tr>
                                             {/* Expanded Details for Purchases Tab */}
@@ -816,13 +822,13 @@ function ClientDetails() {
                                                                             <span className="text-slate-400 font-mono">
                                                                                 {formatCLP(p.precio * p.cantidad)}
                                                                             </span>
-                                                                            <button
+                                                                            {!soloLectura && <button
                                                                                 onClick={() => initiateReturnProduct(mov, idx)}
                                                                                 className="p-1 text-slate-600 hover:text-red-400 opacity-0 group-hover/prod:opacity-100 transition-opacity"
                                                                                 title="Devolver Producto"
                                                                             >
                                                                                 <Trash2 className="w-3.5 h-3.5" />
-                                                                            </button>
+                                                                            </button>}
                                                                         </div>
                                                                     </div>
                                                                 ))}

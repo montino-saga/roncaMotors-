@@ -9,11 +9,19 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // Lector no sube nada. Lee el rol de Firestore; debe coincidir con
+    // puedeEscribir() de firestore.rules.
+    function puedeEscribir() {
+      let perfil = /databases/(default)/documents/usuarios/$(request.auth.uid);
+      return esAdmin()
+        && !(firestore.exists(perfil) && firestore.get(perfil).data.rol == 'lector');
+    }
+
     // Imágenes de productos: lectura pública (catálogo web),
-    // escritura solo admin, con tope de tamaño y solo imágenes.
+    // escritura sin lector, con tope de tamaño y solo imágenes.
     match /productos/{imagen} {
       allow read: if true;
-      allow write: if esAdmin()
+      allow write: if puedeEscribir()
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }

@@ -31,12 +31,15 @@ export function AuthProvider({ children }) {
         )
     }, [user])
 
+    // undefined = aún cargando; null = sin doc. Las guardas por rol esperan al primero.
+    const perfilActual = !user ? null : perfil?.uid === user.uid ? perfil.datos : undefined
+
     const login = (email, password) => signInWithEmailAndPassword(auth, email, password)
     const logout = () => signOut(auth)
     const recuperar = (email) => sendPasswordResetEmail(auth, email)
 
     return (
-        <AuthContext.Provider value={{ user, perfil: perfil && perfil.uid === user?.uid ? perfil.datos : null, loading, login, logout, recuperar }}>
+        <AuthContext.Provider value={{ user, perfil: perfilActual, loading, login, logout, recuperar }}>
             {children}
         </AuthContext.Provider>
     )

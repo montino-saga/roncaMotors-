@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
+// import { toast } from 'sonner'
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
-import { Download, Loader2 } from 'lucide-react'
+// import { Download, Loader2 } from 'lucide-react'
 import { cn } from '../lib/utils'
-import { CAMPOS_VEHICULO, VEHICULO_VACIO, consultarPatente, mensajeErrorPatente } from '../lib/vehiculo'
-import { validarPatente } from '../lib/patente'
+import { CAMPOS_VEHICULO, VEHICULO_VACIO } from '../lib/vehiculo'
+// Consulta por patente desactivada (ver functions/index.js):
+// import { consultarPatente, mensajeErrorPatente } from '../lib/vehiculo'
+// import { validarPatente } from '../lib/patente'
 
 /** Alta y edición a mano de los datos del vehículo de un cliente. */
 export function VehiculoForm({ isOpen, onClose, patente, vehiculo, onGuardar, guardando }) {
@@ -28,31 +30,31 @@ export function VehiculoForm({ isOpen, onClose, patente, vehiculo, onGuardar, gu
 
 function Formulario({ patente, vehiculo, onClose, onGuardar, guardando }) {
     const [datos, setDatos] = useState({ ...VEHICULO_VACIO, ...vehiculo })
-    const [consultando, setConsultando] = useState(false)
+    // const [consultando, setConsultando] = useState(false)
 
     const cambiar = (clave) => (e) => setDatos((prev) => ({ ...prev, [clave]: e.target.value }))
 
-    // Trae marca/modelo/año/tipo/motor de la patente; el resto se completa a mano.
-    const traerDatos = async () => {
-        setConsultando(true)
-        try {
-            const datos = await consultarPatente(patente)
-            setDatos((prev) => ({
-                ...prev,
-                ...Object.fromEntries(
-                    CAMPOS_VEHICULO
-                        .filter(({ clave }) => datos[clave] != null && datos[clave] !== '')
-                        .map(({ clave }) => [clave, String(datos[clave])]),
-                ),
-            }))
-            toast.success(datos.desdeCache ? 'Datos recuperados' : 'Datos traídos de la patente')
-        } catch (error) {
-            console.error('Error consultando patente:', error)
-            toast.error(mensajeErrorPatente(error))
-        } finally {
-            setConsultando(false)
-        }
-    }
+    // // Trae marca/modelo/año/tipo/motor de la patente; el resto se completa a mano.
+    // const traerDatos = async () => {
+    //     setConsultando(true)
+    //     try {
+    //         const datos = await consultarPatente(patente)
+    //         setDatos((prev) => ({
+    //             ...prev,
+    //             ...Object.fromEntries(
+    //                 CAMPOS_VEHICULO
+    //                     .filter(({ clave }) => datos[clave] != null && datos[clave] !== '')
+    //                     .map(({ clave }) => [clave, String(datos[clave])]),
+    //             ),
+    //         }))
+    //         toast.success(datos.desdeCache ? 'Datos recuperados' : 'Datos traídos de la patente')
+    //     } catch (error) {
+    //         console.error('Error consultando patente:', error)
+    //         toast.error(mensajeErrorPatente(error))
+    //     } finally {
+    //         setConsultando(false)
+    //     }
+    // }
 
     return (
         <form
@@ -67,6 +69,7 @@ function Formulario({ patente, vehiculo, onClose, onGuardar, guardando }) {
                     <p className="text-sm text-slate-400 min-w-0">
                         Patente <span className="font-mono text-white">{patente}</span>
                     </p>
+                    {/* "Traer datos" desactivado junto con consultarPatente:
                     <Button
                         type="button"
                         variant="secondary"
@@ -77,6 +80,7 @@ function Formulario({ patente, vehiculo, onClose, onGuardar, guardando }) {
                         {consultando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                         {consultando ? 'Consultando…' : 'Traer datos'}
                     </Button>
+                    */}
                 </div>
             )}
 

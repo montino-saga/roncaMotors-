@@ -10,6 +10,7 @@ import { CurrencyInput } from '../../components/ui/CurrencyInput'
 import { Button } from '../../components/ui/Button'
 import { SkeletonCard, SkeletonKpis, SkeletonHeader } from '../../components/ui/Skeleton'
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
+import { usePermisos } from '../../hooks/usePermisos'
 import { cn, formatCLP } from '../../lib/utils'
 import { CATEGORIAS, categoriaDe, inicioMes, finMes, mesAnterior, mesSiguiente, mismoMes, partirPorMes, resumenGastos, filtrarGastos } from '../../lib/gastos'
 
@@ -34,6 +35,7 @@ const aISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '
 const FORM_VACIO = () => ({ fecha: hoyISO(), categoria: 'publicidad', monto: '', descripcion: '' })
 
 function Gastos() {
+    const { soloLectura } = usePermisos()
     const { user } = useAuth()
     const [mes, setMes] = useState(() => inicioMes(new Date()))
     const [gastos, setGastos] = useState([])
@@ -177,6 +179,7 @@ function Gastos() {
                 <div className="lg:col-span-4 flex flex-col gap-3 lg:min-h-0">
                     <Card className="p-4 bg-slate-900/50 shrink-0">
                         <form onSubmit={guardar} className="space-y-3">
+                        <fieldset disabled={soloLectura} className="contents">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold text-white flex items-center gap-2">
                                     {editando ? <Pencil className="w-4 h-4 text-amber-400" /> : <Plus className="w-4 h-4 text-primary" />}
@@ -226,6 +229,7 @@ function Gastos() {
                                 {editando ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                                 {guardando ? 'Guardando…' : editando ? 'Guardar cambios' : 'Registrar gasto'}
                             </Button>
+                        </fieldset>
                         </form>
                     </Card>
 
@@ -293,10 +297,10 @@ function Gastos() {
                                                 </td>
                                                 <td className="p-3 text-right text-sm font-bold text-white whitespace-nowrap">{formatCLP(g.monto)}</td>
                                                 <td className="p-2 w-20">
-                                                    <div className="flex justify-end gap-1 opacity-60 group-hover:opacity-100">
+                                                    {!soloLectura && <div className="flex justify-end gap-1 opacity-60 group-hover:opacity-100">
                                                         <button type="button" aria-label="Editar" onClick={() => editar(g)} className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/10"><Pencil className="w-4 h-4" /></button>
                                                         <button type="button" aria-label="Eliminar" onClick={() => eliminar(g)} className="p-1.5 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-500/10"><Trash2 className="w-4 h-4" /></button>
-                                                    </div>
+                                                    </div>}
                                                 </td>
                                             </tr>
                                         )

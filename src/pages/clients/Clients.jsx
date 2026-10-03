@@ -5,6 +5,7 @@ import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
+import { usePermisos, TITULO_SOLO_LECTURA } from '../../hooks/usePermisos'
 import { invalidarClientes } from '../../lib/clientes'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -17,6 +18,7 @@ import { formatPatente, limpiarPatente, validarPatente } from '../../lib/patente
 import { resumenVehiculo } from '../../lib/vehiculo'
 
 function Clients() {
+    const { soloLectura } = usePermisos()
     const navigate = useNavigate()
     // /clientes?nuevo=1 (acción de la barra móvil): abre el alta y limpia la URL.
     const [searchParams, setSearchParams] = useSearchParams()
@@ -25,7 +27,7 @@ function Clients() {
     const [loading, setLoading] = useState(true)
     const mostrarSkeleton = useDelayedLoading(loading)
     const [searchTerm, setSearchTerm] = useState('')
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(abrirDesdeUrl)
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(abrirDesdeUrl && !soloLectura)
     useEffect(() => {
         if (abrirDesdeUrl) setSearchParams({}, { replace: true })
     }, [abrirDesdeUrl, setSearchParams])
@@ -139,6 +141,8 @@ function Clients() {
                 <Button
                     data-tour="clientes-nuevo"
                     onClick={() => setIsCreateModalOpen(true)}
+                    disabled={soloLectura}
+                    title={soloLectura ? TITULO_SOLO_LECTURA : undefined}
                     className="h-11 px-4 sm:px-5 inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 font-bold"
                 >
                     <Plus className="w-5 h-5" />
@@ -193,10 +197,10 @@ function Clients() {
                         ) : (
                             <>
                                 <p className="text-slate-400">Aún no hay clientes.</p>
-                                <Button onClick={() => setIsCreateModalOpen(true)} className="mt-4 h-10 text-sm inline-flex items-center gap-2">
+                                {!soloLectura && <Button onClick={() => setIsCreateModalOpen(true)} className="mt-4 h-10 text-sm inline-flex items-center gap-2">
                                     <Plus className="w-4 h-4" />
                                     Crear el primero
-                                </Button>
+                                </Button>}
                             </>
                         )}
                     </div>
@@ -328,7 +332,7 @@ function Clients() {
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
                         <Button type="button" variant="secondary" onClick={() => setIsCreateModalOpen(false)}>Cancelar</Button>
-                        <Button type="submit" disabled={creatingClient || !newClientName}>
+                        <Button type="submit" disabled={soloLectura || creatingClient || !newClientName}>
                             {creatingClient ? 'Guardando...' : 'Crear Cliente'}
                         </Button>
                     </div>

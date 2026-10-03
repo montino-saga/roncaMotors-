@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
+import { usePermisos } from '../../hooks/usePermisos'
 import { cn } from '../../lib/utils'
 import { PRESS } from '../../lib/motion'
 import { esAfecto, netoDe } from '../../lib/iva'
@@ -90,6 +91,7 @@ function Alerta({ k, count, active, onToggle, icon: Icon, tone, label, title, di
 }
 
 function ProductList() {
+  const { soloLectura } = usePermisos()
   // Catálogo compartido: 0 lecturas al entrar, y refleja altas/bajas al instante.
   const { productos, listo } = useCatalogo()
   const loading = !listo
@@ -622,17 +624,17 @@ function ProductList() {
                           <button
                             onClick={() => navigate(`/editar/${producto.id}`)}
                             className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                            title="Editar"
+                            title={soloLectura ? 'Ver detalle' : 'Editar'}
                           >
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button
+                          {!soloLectura && <button
                             onClick={() => handleDeleteClick(producto)}
                             className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                             title="Eliminar"
                           >
                             <Trash2 className="w-4 h-4" />
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>
@@ -647,10 +649,10 @@ function ProductList() {
                     <>
                       <p className="font-medium">Aún no hay productos</p>
                       <p className="text-sm text-slate-500">Crea el primero para empezar a vender</p>
-                      <Button onClick={() => navigate('/crear')} className="mt-4 h-10 text-sm inline-flex items-center gap-2">
+                      {!soloLectura && <Button onClick={() => navigate('/crear')} className="mt-4 h-10 text-sm inline-flex items-center gap-2">
                         <Plus className="w-4 h-4" />
                         Crear producto
-                      </Button>
+                      </Button>}
                     </>
                   ) : (
                     <>

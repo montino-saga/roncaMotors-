@@ -13,6 +13,7 @@ import { SPRING, PRESS } from '../../lib/motion'
 import { toast } from 'sonner'
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
+import { usePermisos, TITULO_SOLO_LECTURA } from '../../hooks/usePermisos'
 import { printer } from '../../lib/printer'
 import { sounds } from '../../lib/sounds'
 import { useTheme } from '../../context/ThemeContext'
@@ -56,6 +57,7 @@ function Deslizable({ enabled, onDelete, children }) {
 }
 
 function Sales() {
+    const { soloLectura } = usePermisos()
     const { settings } = useTheme()
     const [cart, setCart] = usePersistedState('roncamotors_pos_cart', [])
     const [productId, setProductId] = useState('')
@@ -791,7 +793,7 @@ function Sales() {
                         >
                             Cancelar
                         </Button>
-                        <Button type="submit" disabled={updatingStock || newStockValue === ''}>
+                        <Button type="submit" disabled={soloLectura || updatingStock || newStockValue === ''} title={soloLectura ? TITULO_SOLO_LECTURA : undefined}>
                             {updatingStock ? 'Actualizando...' : 'Guardar y Agregar'}
                         </Button>
                     </div>
@@ -1069,7 +1071,8 @@ function Sales() {
                                     ? "bg-amber-600 hover:bg-amber-500 shadow-amber-500/20"
                                     : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20"
                             )}
-                            disabled={cart.length === 0 || processing}
+                            disabled={soloLectura || cart.length === 0 || processing}
+                            title={soloLectura ? TITULO_SOLO_LECTURA : undefined}
                         >
                             {processing ? 'Procesando...' : paymentType === 'fiado' ? 'Seleccionar Cliente' : 'Finalizar Venta'}
                         </Button>

@@ -13,6 +13,11 @@ export default defineConfig({
       // autoUpdate recargaba en medio de una venta.
       registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+      workbox: {
+        // /__/ es de Firebase (crear/restablecer contraseña, login): si el SW
+        // devuelve index.html ahí, el enlace del correo abre la app en vez del formulario.
+        navigateFallbackDenylist: [/^\/__\//],
+      },
       manifest: {
         name: 'Roncamotors',
         short_name: 'Roncamotors',

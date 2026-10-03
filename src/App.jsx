@@ -1,5 +1,5 @@
 import { lazy, Suspense, useLayoutEffect, useRef } from 'react'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import Login from './pages/login/Login'
 import { VistaSkeleton } from './components/ui/Skeleton'
@@ -28,6 +28,13 @@ import { Layout } from './components/Layout'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { AppearanceProvider, useAppearance } from './context/AppearanceContext'
+import { esDesarrollador } from './lib/usuarios'
+
+function SoloDesarrollador({ children }) {
+    const { perfil } = useAuth()
+    if (perfil === undefined) return <VistaSkeleton />
+    return esDesarrollador(perfil) ? children : <Navigate to="/" replace />
+}
 
 // Wrapper de cada vista: remonta al cambiar de ruta (key) y numera las Cards
 // en orden de documento para escalonar su entrada (--i en .card-entra).
@@ -80,7 +87,7 @@ function Panel() {
                     <Route path="/gastos" element={<Gastos />} />
                     <Route path="/cierre-caja" element={<CashClose />} />
                     <Route path="/configuracion" element={<Settings />} />
-                    <Route path="/usuarios" element={<Usuarios />} />
+                    <Route path="/usuarios" element={<SoloDesarrollador><Usuarios /></SoloDesarrollador>} />
                     <Route path="*" element={<NotFound />} />
                 </Routes>
                 </Suspense>

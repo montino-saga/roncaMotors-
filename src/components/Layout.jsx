@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import {
@@ -24,7 +24,7 @@ import { Tour } from "./Tour";
 import { useNovedades } from "../hooks/useNovedades";
 import { useAvisos } from "../hooks/useAvisos";
 import { VERSION_ACTUAL } from "../lib/releases";
-import { rolDe } from "../lib/usuarios";
+import { rolDe, esDesarrollador, puedeEscribir } from "../lib/usuarios";
 
 const W_OPEN = 264;
 const W_SHUT = 76;
@@ -74,7 +74,7 @@ const navSections = [
         title: "Sistema",
         items: [
             { href: "/configuracion", label: "Configuración", icon: Settings },
-            { href: "/usuarios", label: "Usuarios", icon: Users },
+            { href: "/usuarios", label: "Usuarios", icon: Users, soloDesarrollador: true },
         ]
     }
 ];
@@ -143,7 +143,12 @@ export function Layout({ children }) {
     const novedades = useNovedades();
     const avisos = useAvisos();
     const [avisosOpen, setAvisosOpen] = useState(false);
-    const navItems = navSections.flatMap((s) => s.items);
+    const dev = esDesarrollador(perfil);
+    const secciones = useMemo(() => navSections.map((s) => ({
+        ...s,
+        items: s.items.filter((i) => !i.soloDesarrollador || dev),
+    })), [dev]);
+    const navItems = useMemo(() => secciones.flatMap((s) => s.items), [secciones]);
 
     // Pestaña e historial del navegador con nombre de vista, no solo la marca.
     useEffect(() => {
@@ -264,7 +269,8 @@ export function Layout({ children }) {
     const mask = `linear-gradient(to bottom, ${edges.top ? "transparent 0, #000 16px" : "#000 0"}, ${edges.bottom ? "#000 calc(100% - 20px), transparent 100%" : "#000 100%"})`;
 
     const activeLabel = navItems.find((i) => isRouteActive(location.pathname, i.href))?.label ?? "";
-    const accion = accionMovil(location.pathname);
+    // Las acciones de la barra móvil crean cosas: el lector no las ve.
+    const accion = puedeEscribir(perfil) ? accionMovil(location.pathname) : null;
 
     return (
         <MotionConfig reducedMotion="user">
@@ -421,7 +427,7 @@ export function Layout({ children }) {
                         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-5 custom-scrollbar"
                         style={{ maskImage: mask, WebkitMaskImage: mask }}
                     >
-                        {navSections.map((section, i) => (
+                        {secciones.map((section, i) => (
                             <div key={section.title} className={cn(i > 0 && "pt-5 border-t border-white/[0.06]")}>
                                 <motion.h2
                                     style={{ opacity: labelOpacity }}

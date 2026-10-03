@@ -13,9 +13,9 @@ Panel de taller/tienda (POS, inventario, clientes con fiado, caja, gastos, repor
    - `src/App.jsx` — rutas
    - `src/components/Layout.jsx` — sidebar (`navSections`)
    - `src/context/AuthContext.jsx` — sesión + `perfil` (rol)
-   - `src/lib/usuarios.js` — roles
+   - `src/lib/usuarios.js` + `src/hooks/usePermisos.js` — roles y permisos
    - `src/db/firebase.js` — init Firebase
-   - `functions/index.js` — Cloud Function `consultarPatente`
+   - `functions/index.js` — Cloud Function `crearUsuario` (invitación). `consultarPatente` (Boostr) está comentada: sin API key
 
 ## Regla obligatoria: mantener docs al día
 Todo cambio que toque datos o permisos actualiza, **en el mismo cambio**:
@@ -37,28 +37,27 @@ Detalle de campos en `SCHEMA.md`.
 | `cash_registers` | Sesiones de caja |
 | `gastos` | Gastos del local |
 | `usuarios/{uid}` | Perfil y rol de cada cuenta de Auth |
-| `vehiculos/{patente}` | Caché de patentes (solo Cloud Function escribe) |
+| `vehiculos/{patente}` | Caché de patentes. Desactivada junto con `consultarPatente` |
 | `settings/global` | Datos de empresa y apariencia |
 
 Storage: `productos/` (imágenes).
 
 ## Roles y permisos
-Estado: **roles creados, permisos NO aplicados** (ni UI ni rules). Hoy toda cuenta con sesión tiene acceso total. Rol inicial al primer login: `admin`.
-
-Plan propuesto (confirmar con Peter Parker antes de aplicar):
+Rol inicial al primer login: `admin`. Primer `desarrollador`: a mano en consola Firebase.
 
 | Área | desarrollador | admin | lector |
 |---|---|---|---|
-| Ventas, caja, clientes, pedidos web, gastos | ✅ total | ✅ total | 👁 solo ver |
-| Productos / inventario | ✅ total | ✅ total | 👁 solo ver |
-| Reportes (dashboard, análisis, historial) | ✅ | ✅ | 👁 |
-| Editar/borrar ventas del historial | ✅ | ✅ | ❌ |
-| Configuración (datos empresa) | ✅ | ✅ | ❌ |
-| Usuarios: ver | ✅ | ✅ | ❌ |
-| Usuarios: cambiar roles | ✅ | ❌ | ❌ |
-| Config técnica (apariencia, `primaryColor`) | ✅ | ❌ | ❌ |
+| Ver todas las vistas (ventas, caja, clientes, inventario, reportes, configuración) | ✅ | ✅ | ✅ |
+| Crear, editar, borrar en cualquier vista | ✅ | ✅ | ❌ |
+| Usuarios: vista, sidebar, ver, invitar y cambiar roles | ✅ | ❌ | ❌ |
 
-Al aplicar: restringir en `firestore.rules` (leer `usuarios/{request.auth.uid}.rol`) **y** en UI (ocultar nav/acciones); impedir que un usuario cambie su propio rol.
+- Fuente única en `src/lib/usuarios.js` (`esDesarrollador`, `puedeEscribir`); en vistas usar `usePermisos()` → `{ soloLectura, esDesarrollador }`.
+- UI: `soloDesarrollador` en `navSections` + guarda `SoloDesarrollador` en `App.jsx`. Lector: formularios en `<fieldset disabled={soloLectura} className="contents">`, acciones de fila ocultas, botones de cobro/alta deshabilitados con `TITULO_SOLO_LECTURA`.
+- Rules: `esDesarrollador()` y `puedeEscribir()` en `firestore.rules`; `puedeEscribir()` en `storage.rules`. UI y rules deben coincidir.
+- **Toda acción de escritura nueva** debe respetar `soloLectura`.
+- Nadie cambia su propio rol (rules + select deshabilitado).
+- Invitar: Cloud Function `crearUsuario` valida que quien llama sea desarrollador (Admin SDK salta las rules) y crea cuenta sin contraseña + perfil; el correo de restablecimiento de Firebase hace de invitación.
+- `ROLES` está duplicado en `src/lib/usuarios.js` y `functions/index.js`: cambiar ambos.
 
 ## Código
 - Español en commits, comentarios y UI.
@@ -66,4 +65,5 @@ Al aplicar: restringir en `firestore.rules` (leer `usuarios/{request.auth.uid}.r
 - Seguir patrones existentes (`Card`, `Skeleton`, `toast` de sonner, `useDelayedLoading`).
 - Tests junto a cada vista en `__tests__/`; mock de Firestore en `src/test/firebaseMock.js`.
 - Verificar con `npx eslint src && npx vitest run`.
+- Rules/functions: probar en emulador local con proyecto `demo-test`, nunca contra producción. `firebase.json` no trae bloque `emulators`: para Auth usar un `--config` temporal con puertos (auth 9099, firestore 8080, functions 5001, storage 9199) y `npm install` en `functions/`.
 - Ops destructivas y deploys → confirmar antes.

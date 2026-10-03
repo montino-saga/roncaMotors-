@@ -6,7 +6,7 @@ import imageCompression from 'browser-image-compression'
 import { toast } from 'sonner'
 import { cn } from '../../lib/utils'
 
-export function ImageUpload({ onImageUploaded, currentImage, className }) {
+export function ImageUpload({ onImageUploaded, currentImage, className, disabled }) {
     const [preview, setPreview] = useState(currentImage || '')
     const [uploading, setUploading] = useState(false)
     const [dragActive, setDragActive] = useState(false)
@@ -74,10 +74,11 @@ export function ImageUpload({ onImageUploaded, currentImage, className }) {
         e.preventDefault()
         e.stopPropagation()
         setDragActive(false)
+        if (disabled) return
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             handleFile(e.dataTransfer.files[0])
         }
-    }, [handleFile])
+    }, [handleFile, disabled])
 
     const handleChange = (e) => {
         e.preventDefault()
@@ -100,6 +101,7 @@ export function ImageUpload({ onImageUploaded, currentImage, className }) {
             <div
                 className={cn(
                     "relative border-2 border-dashed rounded-xl p-8 transition-all duration-200 ease-in-out flex flex-col items-center justify-center text-center cursor-pointer group overflow-hidden",
+                    disabled && "pointer-events-none opacity-60",
                     dragActive ? "border-blue-500 bg-blue-500/10" : "border-white/10 hover:border-white/20 hover:bg-white/5",
                     preview ? "border-none p-0" : ""
                 )}
@@ -115,7 +117,7 @@ export function ImageUpload({ onImageUploaded, currentImage, className }) {
                     className="hidden"
                     accept="image/*"
                     onChange={handleChange}
-                    disabled={uploading}
+                    disabled={uploading || disabled}
                 />
 
                 {uploading ? (

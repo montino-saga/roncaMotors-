@@ -9,6 +9,7 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { useTheme } from '../../context/ThemeContext'
 import { useConfirmarSalida } from '../../hooks/useConfirmarSalida'
+import { usePermisos } from '../../hooks/usePermisos'
 import { ConfirmarSalida } from '../../components/ui/ConfirmarSalida'
 import { formatRut, validarRut } from '../../lib/rut'
 import { cn } from '../../lib/utils'
@@ -43,6 +44,7 @@ const Campo = ({ label, hint, children, className }) => (
 )
 
 export function DatosEmpresa({ onChange, className }) {
+    const { soloLectura } = usePermisos()
     const { settings, loading } = useTheme()
     const [form, setForm] = useState(() => desdeSettings(settings))
     const [guardado, setGuardado] = useState(() => desdeSettings(settings))
@@ -111,6 +113,7 @@ export function DatosEmpresa({ onChange, className }) {
         <ConfirmarSalida blocker={blocker} />
         <Card className={cn('p-0 bg-slate-900/50 border-white/10 flex flex-col overflow-hidden', className)}>
             <form onSubmit={guardar} className="flex flex-col min-h-0 flex-1">
+            <fieldset disabled={soloLectura} className="contents">
                 <div className="flex items-center gap-3 p-4 border-b border-white/10 shrink-0">
                     <div className="p-2 rounded-lg bg-primary/15 text-primary">
                         <Building2 className="w-5 h-5" />
@@ -222,6 +225,7 @@ export function DatosEmpresa({ onChange, className }) {
                         Guardar
                     </Button>
                 </div>
+            </fieldset>
             </form>
         </Card>
         </>

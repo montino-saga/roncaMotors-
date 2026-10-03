@@ -35,6 +35,9 @@ const db = initializeFirestore(app, {
 
 const storage = getStorage(app);
 const auth = getAuth(app);
+// Idioma de los correos de Auth (invitación / restablecer) y de la página del
+// enlace: la plantilla de la consola está bloqueada y por defecto sale en inglés.
+auth.languageCode = "es";
 const functions = getFunctions(app, "southamerica-east1");
 
 export { db, storage, auth, functions };

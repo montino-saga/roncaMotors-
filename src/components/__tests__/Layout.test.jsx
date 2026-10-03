@@ -9,7 +9,8 @@ vi.mock('firebase/firestore', () => firestoreMock)
 vi.mock('../../db/firebase', () => ({ db: {}, auth: {}, storage: {} }))
 const logout = vi.fn(), setMode = vi.fn()
 let resolved = 'dark'
-vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { email: 'admin@taller.cl' }, logout }) }))
+let perfil = { rol: 'admin' }
+vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { email: 'admin@taller.cl' }, perfil, logout }) }))
 vi.mock('../../context/AppearanceContext', () => ({ useAppearance: () => ({ resolved, setMode }) }))
 vi.mock('../../context/ThemeContext', () => ({ useTheme: () => ({ settings: { businessName: 'Taller Norte', logo: '' }, loading: false }) }))
 let escritorio = true
@@ -24,9 +25,20 @@ const montar = (ruta = '/ventas') => render(
   </MemoryRouter>
 )
 
-beforeEach(() => { resetFirebaseMock(); escritorio = true; resolved = 'dark'; localStorage.setItem('roncamotors_tutorial_visto', '1') })
+beforeEach(() => { resetFirebaseMock(); perfil = { rol: 'admin' }; escritorio = true; resolved = 'dark'; localStorage.setItem('roncamotors_tutorial_visto', '1') })
 
 describe('Layout', () => {
+  it('Usuarios solo aparece para desarrollador; el rol se muestra bajo el avatar', () => {
+    const { unmount } = montar()
+    expect(screen.queryByRole('link', { name: /Usuarios/ })).not.toBeInTheDocument()
+    expect(screen.getByText('Administrador')).toBeInTheDocument()
+    unmount()
+    perfil = { rol: 'desarrollador' }
+    montar()
+    expect(screen.getByRole('link', { name: /Usuarios/ })).toBeInTheDocument()
+    expect(screen.getByText('Desarrollador')).toBeInTheDocument()
+  })
+
   it('nav completa con secciones, marca y usuario; la ruta activa marcada', () => {
     montar('/gastos')
     for (const l of ['Cierre de Caja', 'Punto de Venta', 'Clientes', 'Pedidos Web', 'Gastos', 'Productos', 'Crear Producto', 'Dashboard', 'Análisis', 'Historial', 'Configuración']) {

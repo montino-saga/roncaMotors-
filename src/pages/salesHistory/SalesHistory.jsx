@@ -13,9 +13,11 @@ import { toast } from 'sonner'
 import { Button } from '../../components/ui/Button'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
+import { usePermisos } from '../../hooks/usePermisos'
 import { SalesAnalytics } from './SalesAnalytics'
 
 function SalesHistory() {
+    const { soloLectura } = usePermisos()
     const [sales, setSales] = useState([])
     const [loading, setLoading] = useState(true)
     const mostrarSkeleton = useDelayedLoading(loading)
@@ -651,17 +653,17 @@ function SalesHistory() {
                                                             <button
                                                                 onClick={() => handleViewDetails(sale)}
                                                                 className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                                                title="Editar Tipo de Pago / Ver Detalle"
+                                                                title={soloLectura ? 'Ver detalle' : 'Editar Tipo de Pago / Ver Detalle'}
                                                             >
-                                                                <Pencil className="w-5 h-5" />
+                                                                {soloLectura ? <Eye className="w-5 h-5" /> : <Pencil className="w-5 h-5" />}
                                                             </button>
-                                                            <button
+                                                            {!soloLectura && <button
                                                                 onClick={() => confirmDeleteSale(sale.id)}
                                                                 className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                                                                 title="Eliminar Venta"
                                                             >
                                                                 <Trash2 className="w-5 h-5" />
-                                                            </button>
+                                                            </button>}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -694,7 +696,7 @@ function SalesHistory() {
                             <div className="bg-white/5 p-3 rounded-xl border border-white/10">
                                 <div className="flex items-center justify-between mb-1">
                                     <p className="text-slate-400">Método de Pago</p>
-                                    {!isEditingPayment ? (
+                                    {soloLectura ? null : !isEditingPayment ? (
                                         <button
                                             onClick={() => setIsEditingPayment(true)}
                                             className="text-xs text-primary hover:text-primary/80"
@@ -760,13 +762,13 @@ function SalesHistory() {
                                             <p className={cn("font-medium tabular-nums", prod.descuento > 0 ? "text-amber-300" : "text-white")}>
                                                 {formatCLP(prod.cantidad * getLocalPrice(prod))}
                                             </p>
-                                            <button
+                                            {!soloLectura && <button
                                                 onClick={() => initiateReturnProduct(index)}
                                                 className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                                                 title="Devolver producto"
                                             >
                                                 <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            </button>}
                                         </div>
                                     </div>
                                 ))}

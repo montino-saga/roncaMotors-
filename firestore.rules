@@ -10,6 +10,26 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function perfilPath() {
+      return /databases/$(database)/documents/usuarios/$(request.auth.uid);
+    }
+
+    // Lector: ve todo, no escribe nada. Sin doc de perfil cuenta como admin
+    // (rol inicial). Debe coincidir con puedeEscribir() de src/lib/usuarios.js.
+    function puedeEscribir() {
+      return esAdmin() && !(exists(perfilPath()) && get(perfilPath()).data.rol == 'lector');
+    }
+
+    // Única diferencia entre desarrollador y admin: gestionar usuarios.
+    // Debe coincidir con esDesarrollador() de src/lib/usuarios.js.
+    function esDesarrollador() {
+      return esAdmin() && exists(perfilPath()) && get(perfilPath()).data.rol == 'desarrollador';
+    }
+
+    function cambiaRol() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['rol']);
+    }
+
     // Validación del pedido web (lo crea la landing pública sin cuenta).
     function pedidoWebValido() {
       let d = request.resource.data;
@@ -33,15 +53,18 @@ service cloud.firestore {
     }
 
     match /productos/{id} {
-      // Igual que antes: solo admin. Si la landing pública necesitara leer
+      // Si la landing pública necesitara leer
       // el catálogo desde esta base, cambia read a: allow read: if true;
-      allow read, write: if esAdmin();
+      allow read: if esAdmin();
+      allow write: if puedeEscribir();
     }
 
     match /clients/{id} {
-      allow read, write: if esAdmin();
+      allow read: if esAdmin();
+      allow write: if puedeEscribir();
       match /movements/{mid} {
-        allow read, write: if esAdmin();
+        allow read: if esAdmin();
+        allow write: if puedeEscribir();
       }
     }
 
@@ -52,29 +75,43 @@ service cloud.firestore {
     }
 
     match /sales/{id} {
-      allow read, write: if esAdmin();
+      allow read: if esAdmin();
+      allow write: if puedeEscribir();
     }
 
     match /cash_registers/{id} {
-      allow read, write: if esAdmin();
+      allow read: if esAdmin();
+      allow write: if puedeEscribir();
     }
 
     match /gastos/{id} {
-      allow read, write: if esAdmin();
+      allow read: if esAdmin();
+      allow write: if puedeEscribir();
     }
 
-    // Perfil y rol de cada cuenta (id = uid de Auth). Roles aún sin aplicar.
+    // Perfil y rol de cada cuenta (id = uid de Auth).
+    // Cada uno lee y registra su propio acceso (AuthContext); el resto, solo desarrollador.
     match /usuarios/{uid} {
-      allow read, write: if esAdmin();
+      allow read: if esAdmin() && (request.auth.uid == uid || esDesarrollador());
+      // Alta propia solo como admin: nadie se autoasigna desarrollador.
+      allow create: if esAdmin() && request.auth.uid == uid && request.resource.data.rol == 'admin';
+      // Nadie cambia su propio rol: un desarrollador no puede quedarse sin acceso por error.
+      allow update: if esAdmin() && (
+        (request.auth.uid == uid && !cambiaRol())
+        || (request.auth.uid != uid && esDesarrollador())
+      );
+      allow delete: if esDesarrollador() && request.auth.uid != uid;
     }
 
     match /settings/{id} {
-      allow read, write: if esAdmin();
+      allow read: if esAdmin();
+      allow write: if puedeEscribir();
     }
 
     // Pedidos web: crear abierto con validación; leer/editar/borrar solo admin.
     match /salesWeb/{id} {
-      allow read, update, delete: if esAdmin();
+      allow read: if esAdmin();
+      allow update, delete: if puedeEscribir();
       allow create: if pedidoWebValido();
     }
 

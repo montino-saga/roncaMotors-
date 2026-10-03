@@ -8,7 +8,8 @@ import { firestoreMock, escrituras, coleccionesFake, resetFirebaseMock } from '.
 vi.mock('firebase/firestore', () => firestoreMock)
 vi.mock('../../../db/firebase', () => ({ db: {}, auth: {}, storage: {} }))
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }))
-vi.mock('../../../context/AuthContext', () => ({ useAuth: () => ({ user: { uid: 'u1' } }) }))
+let perfil
+vi.mock('../../../context/AuthContext', () => ({ useAuth: () => ({ user: { uid: 'u1' }, perfil }) }))
 import { toast } from 'sonner'
 import Gastos from '../Gastos'
 
@@ -18,6 +19,7 @@ const gasto = (id, fecha, monto, categoria, descripcion = '') => ({ id, fecha: {
 
 beforeEach(() => {
   resetFirebaseMock()
+  perfil = undefined
   coleccionesFake.gastos = [
     gasto('g1', enMes(1), 30000, 'publicidad', 'Instagram ads'),
     gasto('g2', enMes(1), 12000, 'arreglos', 'Vidrio vitrina'),
@@ -122,5 +124,16 @@ describe('Gastos', () => {
     expect(await screen.findByText('Arriendo local')).toBeInTheDocument()
     expect(screen.queryByText('Instagram ads')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mes siguiente' })).toBeEnabled()
+  })
+})
+
+describe('Gastos: lector', () => {
+  it('ve los gastos pero el formulario queda deshabilitado y sin editar/eliminar', async () => {
+    perfil = { rol: 'lector' }
+    render(<MemoryRouter><Gastos /></MemoryRouter>)
+    expect(await screen.findByText('Instagram ads')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Registrar gasto/ })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
   })
 })
