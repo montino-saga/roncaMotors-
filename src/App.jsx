@@ -2,6 +2,7 @@ import { lazy, Suspense, useLayoutEffect, useRef } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import Login from './pages/login/Login'
+import CrearContrasena from './pages/cuenta/CrearContrasena'
 import { VistaSkeleton } from './components/ui/Skeleton'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AvisoConexion } from './components/AvisoConexion'
@@ -98,8 +99,15 @@ function Panel() {
     )
 }
 
+// Destino del enlace del correo de invitación/restablecimiento: va antes del
+// chequeo de sesión porque llega sin sesión (o con la de otra persona).
+const RUTA_ACCION = '/accion'
+
 function Gate() {
     const { user, loading } = useAuth()
+    const { pathname } = useLocation()
+
+    if (pathname === RUTA_ACCION) return <CrearContrasena />
 
     if (loading) {
         return (
