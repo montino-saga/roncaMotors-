@@ -5,6 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, TrendingDown, DollarSign, ShoppingBag, CreditCard } from 'lucide-react'
 import { useAppearance } from '../../context/AppearanceContext'
 import { chartTheme } from '../../lib/chartTheme'
+import { esAbono, esIngresoReal } from '../../lib/ventas'
 
 function CustomTooltip({ active, payload, label }) {
     if (active && payload && payload.length) {
@@ -33,17 +34,19 @@ export function SalesAnalytics({ sales, dateRange }) {
 
     // 1. Calcular KPIs
     const kpis = useMemo(() => {
-        const totalSales = sales.reduce((acc, sale) => acc + (sale.totalVenta || 0), 0)
-        const totalProfit = sales.reduce((acc, sale) => acc + (sale.totalGanancia || 0), 0)
-        const totalCount = sales.length
+        const pedidos = sales.filter(sale => !esAbono(sale))
+        const totalSales = pedidos.reduce((acc, sale) => acc + (sale.totalVenta || 0), 0)
+        const totalProfit = pedidos.reduce((acc, sale) => acc + (sale.totalGanancia || 0), 0)
+        const totalCount = pedidos.length
         const averageTicket = totalCount > 0 ? totalSales / totalCount : 0
         const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0
 
-        const cashSales = sales.filter(s => s.tipoPago === 'efectivo')
-        const cardSales = sales.filter(s => s.tipoPago === 'tarjeta')
-        const creditSales = sales.filter(s => s.tipoPago === 'fiado')
+        const cashSales = pedidos.filter(s => s.tipoPago === 'efectivo')
+        const cardSales = pedidos.filter(s => s.tipoPago === 'tarjeta')
+        const creditSales = pedidos.filter(s => s.tipoPago === 'fiado')
         const suma = (arr) => arr.reduce((acc, s) => acc + (s.totalVenta || 0), 0)
         const creditTotal = suma(creditSales)
+        const collectedTotal = sales.filter(esIngresoReal).reduce((acc, s) => acc + (s.totalVenta || 0), 0)
 
         return {
             totalSales,
@@ -57,8 +60,8 @@ export function SalesAnalytics({ sales, dateRange }) {
             cashTotal: suma(cashSales),
             cardTotal: suma(cardSales),
             creditTotal,
-            // Mismo "Total" que el header del historial: lo fiado aún no entra a caja.
-            collectedTotal: totalSales - creditTotal,
+            // Incluye abonos, igual que "Ingresos Reales" del dashboard.
+            collectedTotal,
         }
     }, [sales])
 
@@ -70,6 +73,7 @@ export function SalesAnalytics({ sales, dateRange }) {
          const grouped = {}
          
          sales.forEach(sale => {
+             if (esAbono(sale)) return
              const date = sale.fechaVenta.toDate()
              let key, sortKey
              

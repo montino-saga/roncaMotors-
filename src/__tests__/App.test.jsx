@@ -28,8 +28,8 @@ describe('App: rutas', () => {
   it('/analisis y /configuracion resuelven (lazy)', async () => {
     montar('/analisis')
     // El chunk lazy tarda más con la suite completa en paralelo.
-    expect(await screen.findByRole('heading', { name: /Análisis/ }, { timeout: 4000 })).toBeInTheDocument()
-  })
+    expect(await screen.findByRole('heading', { name: /Análisis/ }, { timeout: 10000 })).toBeInTheDocument()
+  }, 15000)
 
   it('/usuarios: admin vuelve al inicio', async () => {
     perfil = { rol: 'admin' }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, Timestamp, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { toast } from 'sonner'
-import { Receipt, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Search, X, ArrowUpRight, ArrowDownRight, Minus, Save } from 'lucide-react'
+import { Receipt, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Search, X, ArrowUpRight, ArrowDownRight, Minus, Save, Repeat, Check, CalendarCheck } from 'lucide-react'
 import { db } from '../../db/firebase'
 import { useAuth } from '../../context/AuthContext'
 import { Card } from '../../components/ui/Card'
@@ -12,27 +12,16 @@ import { SkeletonCard, SkeletonKpis, SkeletonHeader } from '../../components/ui/
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { usePermisos } from '../../hooks/usePermisos'
 import { cn, formatCLP } from '../../lib/utils'
-import { CATEGORIAS, categoriaDe, inicioMes, finMes, mesAnterior, mesSiguiente, mismoMes, partirPorMes, resumenGastos, filtrarGastos } from '../../lib/gastos'
-
-// Tailwind necesita las clases literales: nada de `bg-${color}-500`.
-const TONO = {
-    pink:    { chip: 'bg-pink-500/15 text-pink-400 border-pink-500/30',       barra: 'bg-pink-400' },
-    blue:    { chip: 'bg-blue-500/15 text-blue-400 border-blue-500/30',       barra: 'bg-blue-400' },
-    cyan:    { chip: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',       barra: 'bg-cyan-400' },
-    orange:  { chip: 'bg-orange-500/15 text-orange-400 border-orange-500/30', barra: 'bg-orange-400' },
-    purple:  { chip: 'bg-purple-500/15 text-purple-400 border-purple-500/30', barra: 'bg-purple-400' },
-    emerald: { chip: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', barra: 'bg-emerald-400' },
-    yellow:  { chip: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', barra: 'bg-yellow-400' },
-    red:     { chip: 'bg-red-500/15 text-red-400 border-red-500/30',          barra: 'bg-red-400' },
-    slate:   { chip: 'bg-slate-500/15 text-slate-300 border-slate-500/30',    barra: 'bg-slate-400' },
-}
+import { TONO } from './tonos'
+import { asegurarGastosFijos } from '../../lib/gastosFijos'
+import { CATEGORIAS, categoriaDe, claveMes, inicioMes, finMes, mesAnterior, mesSiguiente, mismoMes, partirPorMes, resumenGastos, filtrarGastos } from '../../lib/gastos'
 
 const hoyISO = () => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 const aISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const FORM_VACIO = () => ({ fecha: hoyISO(), categoria: 'publicidad', monto: '', descripcion: '' })
+const FORM_VACIO = () => ({ fecha: hoyISO(), categoria: 'publicidad', monto: '', descripcion: '', fijo: false })
 
 function Gastos() {
     const { soloLectura } = usePermisos()
@@ -47,6 +36,7 @@ function Gastos() {
     const [filtroCat, setFiltroCat] = useState('')
     const [busqueda, setBusqueda] = useState('')
     const [recarga, setRecarga] = useState(0)
+    const [plantillas, setPlantillas] = useState({})   // gastosRecurrentes por id
 
     // Mes visible + anterior en una sola query (la comparación no cuesta otra lectura).
     useEffect(() => {
@@ -54,6 +44,12 @@ function Gastos() {
         const cargar = async () => {
             setLoading(true)
             try {
+                // Los fijos del mes deben existir antes de leer la lista.
+                if (!soloLectura) await asegurarGastosFijos(user?.uid)
+                // Las plantillas son un extra: si fallan, la lista de gastos carga igual.
+                getDocs(collection(db, 'gastosRecurrentes'))
+                    .then(snapFijos => { if (vivo) setPlantillas(Object.fromEntries(snapFijos.docs.map(d => [d.id, d.data()]))) })
+                    .catch(error => console.error('Error cargando gastos fijos:', error))
                 const snap = await getDocs(query(
                     collection(db, 'gastos'),
                     where('fecha', '>=', Timestamp.fromDate(inicioMes(mesAnterior(mes)))),
@@ -70,13 +66,15 @@ function Gastos() {
         }
         cargar()
         return () => { vivo = false }
-    }, [mes, recarga])
+    }, [mes, recarga, soloLectura, user?.uid])
 
     const { actual, anterior } = useMemo(() => partirPorMes(gastos, mes), [gastos, mes])
     const resumen = useMemo(() => resumenGastos(actual, anterior), [actual, anterior])
     const lista = useMemo(() => filtrarGastos(actual, { categoria: filtroCat, texto: busqueda }), [actual, filtroCat, busqueda])
+    const porPagar = actual.filter(g => g.pagado === false).length
 
     const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+    const diaFijo = Number(form.fecha?.slice(8, 10)) || null
     const cancelarEdicion = () => { setEditando(null); setForm(FORM_VACIO()) }
 
     const guardar = async (e) => {
@@ -86,15 +84,43 @@ function Gastos() {
         if (!form.fecha) return toast.error('Ingresa la fecha')
         setGuardando(true)
         try {
+            const fechaGasto = new Date(form.fecha + 'T12:00:00')
             const datos = {
-                fecha: Timestamp.fromDate(new Date(form.fecha + 'T12:00:00')),
+                fecha: Timestamp.fromDate(fechaGasto),
                 monto,
                 categoria: form.categoria,
                 descripcion: form.descripcion.trim(),
             }
+            // La plantilla toma los datos del gasto; el próximo mes se registra sola.
+            const datosFijo = {
+                nombre: (datos.descripcion || categoriaDe(datos.categoria).label).slice(0, 140),
+                monto,
+                categoria: datos.categoria,
+                dia: fechaGasto.getDate(),
+            }
+            const batch = writeBatch(db)
+            const nuevaPlantilla = () => {
+                const ref = doc(collection(db, 'gastosRecurrentes'))
+                const hoy = claveMes(new Date()), delGasto = claveMes(fechaGasto)
+                // Este mes ya queda cubierto por el gasto que se está guardando.
+                batch.set(ref, { ...datosFijo, activo: true, ultimoMes: delGasto > hoy ? delGasto : hoy, creadoEn: Timestamp.now(), userId: user?.uid || null })
+                return ref.id
+            }
             if (editando) {
-                await updateDoc(doc(db, 'gastos', editando), datos)
+                const original = gastos.find(g => g.id === editando)
+                const plantillaId = original?.recurrenteId
+                const activa = plantillaId && plantillas[plantillaId]?.activo
+                const extra = {}
+                if (form.fijo && activa) batch.update(doc(db, 'gastosRecurrentes', plantillaId), datosFijo)
+                else if (form.fijo) extra.recurrenteId = nuevaPlantilla()
+                else if (activa) batch.update(doc(db, 'gastosRecurrentes', plantillaId), { activo: false })
+                batch.update(doc(db, 'gastos', editando), { ...datos, ...extra })
+                await batch.commit()
                 toast.success('Gasto actualizado')
+            } else if (form.fijo) {
+                batch.set(doc(collection(db, 'gastos')), { ...datos, recurrenteId: nuevaPlantilla(), creadoEn: Timestamp.now(), userId: user?.uid || null })
+                await batch.commit()
+                toast.success('Gasto fijo registrado', { description: `${formatCLP(monto)} · se registrará solo cada mes` })
             } else {
                 await addDoc(collection(db, 'gastos'), { ...datos, creadoEn: Timestamp.now(), userId: user?.uid || null })
                 toast.success('Gasto registrado', { description: `${categoriaDe(form.categoria).label} · ${formatCLP(monto)}` })
@@ -113,7 +139,23 @@ function Gastos() {
 
     const editar = (g) => {
         setEditando(g.id)
-        setForm({ fecha: aISO(g.fecha.toDate()), categoria: g.categoria || 'otro', monto: String(g.monto), descripcion: g.descripcion || '' })
+        setForm({
+            fecha: aISO(g.fecha.toDate()), categoria: g.categoria || 'otro', monto: String(g.monto), descripcion: g.descripcion || '',
+            fijo: !!(g.recurrenteId && plantillas[g.recurrenteId]?.activo),
+        })
+    }
+
+    const marcarPagado = async (g) => {
+        const cambiar = (pagado) => setGastos(prev => prev.map(x => x.id === g.id ? { ...x, pagado } : x))
+        cambiar(true)
+        try {
+            await updateDoc(doc(db, 'gastos', g.id), { pagado: true })
+            toast.success('Marcado como pagado', { description: `${g.descripcion || categoriaDe(g.categoria).label} · ${formatCLP(g.monto)}` })
+        } catch (error) {
+            console.error('Error marcando pago:', error)
+            toast.error('No se pudo marcar como pagado')
+            cambiar(false)
+        }
     }
 
     // Borrado optimista con Deshacer: el doc se elimina de verdad al cerrarse el toast.
@@ -155,7 +197,7 @@ function Gastos() {
     }
 
     return (
-        <div className="flex flex-col gap-3 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
+        <div className="vista-fija flex flex-col gap-3">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
                 <div>
                     <h2 className="text-xl font-bold text-white flex items-center gap-2 leading-tight">
@@ -163,7 +205,13 @@ function Gastos() {
                     </h2>
                     <p className="text-slate-400 text-xs">Publicidad, arriendo, arreglos… lo que cuesta mantener el negocio abierto.</p>
                 </div>
-                <div className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-xl border border-white/10 self-start md:self-auto">
+                <div className="flex items-center gap-2 self-start md:self-auto">
+                {!esMesActual && (
+                    <button type="button" onClick={() => setMes(inicioMes(new Date()))} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-slate-900/50 text-sm text-slate-300 hover:text-white hover:bg-white/5">
+                        <CalendarCheck className="w-4 h-4" /> Mes actual
+                    </button>
+                )}
+                <div className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-xl border border-white/10">
                     <button type="button" aria-label="Mes anterior" onClick={() => setMes(mesAnterior(mes))} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5">
                         <ChevronLeft className="w-4 h-4" />
                     </button>
@@ -172,13 +220,14 @@ function Gastos() {
                         <ChevronRight className="w-4 h-4" />
                     </button>
                 </div>
+                </div>
             </div>
 
             {/* Bento lg: 12 col. Izq (4): formulario + desglose. Der (8): KPIs + lista con scroll interno. */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 lg:min-h-0">
                 <div className="lg:col-span-4 flex flex-col gap-3 lg:min-h-0">
                     <Card className="p-4 bg-slate-900/50 shrink-0">
-                        <form onSubmit={guardar} className="space-y-3">
+                        <form onSubmit={guardar} className="flex flex-col gap-3.5">
                         <fieldset disabled={soloLectura} className="contents">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold text-white flex items-center gap-2">
@@ -225,6 +274,37 @@ function Gastos() {
                                 <span className="block text-xs text-slate-400 mb-1">Descripción</span>
                                 <Input value={form.descripcion} onChange={set('descripcion')} placeholder="Ej: Campaña Instagram septiembre" maxLength={140} className="py-2" />
                             </label>
+                            <div>
+                                <span className="block text-xs text-slate-400 mb-1">Tipo de gasto</span>
+                                <div role="radiogroup" aria-label="Tipo de gasto" className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+                                    {[
+                                        { fijo: false, label: 'Variable', sub: 'Espontáneo, una vez' },
+                                        { fijo: true, label: 'Fijo', sub: 'Se repite mes a mes' },
+                                    ].map(t => (
+                                        <button
+                                            key={t.label}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={form.fijo === t.fijo}
+                                            onClick={() => setForm(f => ({ ...f, fijo: t.fijo }))}
+                                            className={cn(
+                                                'flex flex-col items-start px-3 py-1.5 rounded-lg text-left transition-colors',
+                                                form.fijo === t.fijo ? 'bg-primary/15 ring-1 ring-inset ring-primary/40' : 'hover:bg-white/5'
+                                            )}
+                                        >
+                                            <span className={cn('text-sm font-medium flex items-center gap-1.5', form.fijo === t.fijo ? 'text-white' : 'text-slate-300')}>
+                                                {t.fijo && <Repeat className="w-3.5 h-3.5" />}{t.label}
+                                            </span>
+                                            <span className="text-[11px] text-slate-500">{t.sub}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                {form.fijo && diaFijo && (
+                                    <p className="mt-1.5 text-xs text-slate-400">
+                                        Se registrará solo el día {diaFijo} de cada mes como <span className="text-amber-400">por pagar</span>.
+                                    </p>
+                                )}
+                            </div>
                             <Button type="submit" disabled={guardando} className="w-full flex items-center justify-center gap-2">
                                 {editando ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                                 {guardando ? 'Guardando…' : editando ? 'Guardar cambios' : 'Registrar gasto'}
@@ -263,7 +343,7 @@ function Gastos() {
                 <div className="lg:col-span-8 flex flex-col gap-3 lg:min-h-0">
                     <div className="grid grid-cols-3 gap-3 shrink-0">
                         <Kpi label="Total del mes" valor={formatCLP(resumen.total)} sub={<Delta valor={resumen.variacion} />} />
-                        <Kpi label="Gastos" valor={resumen.cantidad} sub={<span className="text-xs text-slate-500">registros</span>} />
+                        <Kpi label="Gastos" valor={resumen.cantidad} sub={<span className="text-xs text-slate-500">registros{porPagar > 0 && <span className="text-amber-400"> · {porPagar} por pagar</span>}</span>} />
                         <Kpi label="Mayor gasto" valor={resumen.mayor ? resumen.mayor.label : '—'} sub={resumen.mayor && <span className="text-xs text-slate-500">{Math.round(resumen.mayor.pct)}% del total</span>} />
                     </div>
 
@@ -292,12 +372,19 @@ function Gastos() {
                                                 <td className="p-3">
                                                     <div className="flex flex-col gap-1 min-w-0">
                                                         <span className="text-sm text-white truncate">{g.descripcion || c.label}</span>
-                                                        <span className={cn('text-[10px] px-2 py-0.5 rounded-full border self-start', TONO[c.color].chip)}>{c.label}</span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className={cn('text-[10px] px-2 py-0.5 rounded-full border', TONO[c.color].chip)}>{c.label}</span>
+                                                            {g.recurrenteId && <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/15 text-slate-300 inline-flex items-center gap-1"><Repeat className="w-2.5 h-2.5" />Fijo</span>}
+                                                            {g.pagado === false && <span className="text-[10px] px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">Por pagar</span>}
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td className="p-3 text-right text-sm font-bold text-white whitespace-nowrap">{formatCLP(g.monto)}</td>
-                                                <td className="p-2 w-20">
+                                                <td className="p-2 w-28">
                                                     {!soloLectura && <div className="flex justify-end gap-1 opacity-60 group-hover:opacity-100">
+                                                        {g.pagado === false && (
+                                                            <button type="button" aria-label="Marcar pagado" title="Marcar pagado" onClick={() => marcarPagado(g)} className="p-1.5 rounded-md text-emerald-400 hover:bg-emerald-500/10"><Check className="w-4 h-4" /></button>
+                                                        )}
                                                         <button type="button" aria-label="Editar" onClick={() => editar(g)} className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/10"><Pencil className="w-4 h-4" /></button>
                                                         <button type="button" aria-label="Eliminar" onClick={() => eliminar(g)} className="p-1.5 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-500/10"><Trash2 className="w-4 h-4" /></button>
                                                     </div>}

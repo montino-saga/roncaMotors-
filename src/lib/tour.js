@@ -33,6 +33,11 @@ export const PASOS_TOUR = [
         texto: 'Ficha de cada cliente con lo que debe, sus abonos y el historial de fiados.',
     },
     {
+        ruta: '/pedidos', target: '[data-tour="nav/pedidos"]', menu: true, lado: 'right',
+        titulo: 'Pedidos Local',
+        texto: 'Encargos de clientes en el mostrador: qué pidió, cuánto abonó y cuánto le falta pagar.',
+    },
+    {
         ruta: '/pedidos-web', target: '[data-tour="nav/pedidos-web"]', menu: true, lado: 'right',
         titulo: 'Pedidos Web',
         texto: 'Los pedidos que llegan desde la página: prepáralos y márcalos entregados.',

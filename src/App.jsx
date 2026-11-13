@@ -24,6 +24,7 @@ const ClientDetails = lazy(() => import('./pages/clients/ClientDetails'))
 const Settings = lazy(() => import('./pages/settings/Settings'))
 const Analisis = lazy(() => import('./pages/analisis/Analisis'))
 const Gastos = lazy(() => import('./pages/gastos/Gastos'))
+const Pedidos = lazy(() => import('./pages/pedidos/Pedidos'))
 const Usuarios = lazy(() => import('./pages/usuarios/Usuarios'))
 import { Layout } from './components/Layout'
 import { ThemeProvider } from './context/ThemeContext'
@@ -63,7 +64,7 @@ function Panel() {
                 que convierte el fixed del toaster en relativo y lo recorta bajo la
                 barra móvil. Arriba a la derecha: abajo tapaba "Finalizar Venta". */}
             <Toaster
-                position="top-right"
+                position="top-center"
                 theme={resolved}
                 richColors
                 mobileOffset={{ top: 64, right: 12, left: 12 }}
@@ -84,6 +85,7 @@ function Panel() {
                     <Route path="/historial" element={<SalesHistory />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/analisis" element={<Analisis />} />
+                    <Route path="/pedidos" element={<Pedidos />} />
                     <Route path="/pedidos-web" element={<WebOrders />} />
                     <Route path="/gastos" element={<Gastos />} />
                     <Route path="/cierre-caja" element={<CashClose />} />

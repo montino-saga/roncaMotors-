@@ -1,7 +1,8 @@
 import { useState, useEffect, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { collection, doc, getDoc, getDocs, query, orderBy, Timestamp, writeBatch, increment, updateDoc } from 'firebase/firestore'
-import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
+import { refProductoDeItem, useCatalogo } from '../../lib/catalogo'
+import { descuentoProporcional } from '../../lib/descuentos'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { SkeletonCard, SkeletonKpis, SkeletonRows } from '../../components/ui/Skeleton'
@@ -10,30 +11,29 @@ import { usePermisos, TITULO_SOLO_LECTURA } from '../../hooks/usePermisos'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
-import { 
-    ArrowLeft, 
-    User, 
+import {
+    ArrowLeft,
+    User,
     Phone,
     Mail,
     IdCard,
-    DollarSign, 
-    Calendar, 
-    History, 
-    CreditCard, 
-    Package, 
-    Receipt, 
-    ChevronDown, 
-    ChevronUp, 
-    TrendingUp, 
-    ShoppingBag, 
-    ChevronLeft, 
-    ChevronRight, 
+    DollarSign,
+    Calendar,
+    History,
+    CreditCard,
+    Package,
+    Receipt,
+    ChevronDown,
+    ChevronUp,
+    TrendingUp,
+    ShoppingBag,
+    ChevronLeft,
+    ChevronRight,
     Trash2,
     AlertTriangle,
     Car,
     Pencil,
-    Plus
-} from 'lucide-react'
+    Plus, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCLP, cn } from '../../lib/utils'
 import { VehiculoForm } from '../../components/VehiculoForm'
@@ -51,7 +51,7 @@ function ClientDetails() {
     const mostrarSkeleton = useDelayedLoading(loading)
     const [clientMovements, setClientMovements] = useState([])
     const [loadingMovements, setLoadingMovements] = useState(false)
-    
+
     const [activeTab, setActiveTab] = useState('purchases')
     const [expandedSaleId, setExpandedSaleId] = useState(null)
 
@@ -155,8 +155,16 @@ function ClientDetails() {
         }
     }
 
-    const handlePayment = async () => {
+    const deudaActual = Math.max(0, Number(client?.currentDebt) || 0)
+    const abonoExcede = Number(paymentAmount) > deudaActual
+
+    const handlePayment = async (e) => {
+        e?.preventDefault?.()
         if (!client || !paymentAmount || Number(paymentAmount) <= 0) return
+        if (abonoExcede) {
+            toast.error('El abono supera la deuda', { description: `${client.name} debe ${formatCLP(deudaActual)}.` })
+            return
+        }
 
         setProcessingPayment(true)
         try {
@@ -165,7 +173,7 @@ function ClientDetails() {
 
             // 1. Create movement
             const movementRef = doc(collection(db, `clients/${client.id}/movements`))
-            
+
             // 3. Register as a Sale (Abono) for History first to get ID
             const saleRef = doc(collection(db, 'sales'))
             const saleData = {
@@ -234,7 +242,7 @@ function ClientDetails() {
         setIsDeleting(true)
         try {
             const batch = writeBatch(db)
-            
+
             // Delete client document
             const clientRef = doc(db, 'clients', client.id)
             batch.delete(clientRef)
@@ -267,11 +275,11 @@ function ClientDetails() {
     const executeDeleteMovement = async () => {
         if (!itemToDelete || !client) return
         setIsDeleting(true)
-        
+
         try {
             const batch = writeBatch(db)
             const movementRef = doc(db, `clients/${client.id}/movements`, itemToDelete.id)
-            
+
             // 1. Delete movement doc
             batch.delete(movementRef)
 
@@ -286,11 +294,11 @@ function ClientDetails() {
             if (itemToDelete.type === 'purchase') {
                 // Deleting a purchase -> Decrease debt
                 debtChange = -itemToDelete.amount
-                
+
                 // 4. Restore Stock (only for purchases)
                 if (itemToDelete.products) {
                     for (const prod of itemToDelete.products) {
-                        const productRef = await refProductoPorCodigo(prod.idProducto)
+                        const productRef = await refProductoDeItem(prod)
                         if (productRef) batch.update(productRef, { cantidadProducto: increment(prod.cantidad) })
                     }
                 }
@@ -306,7 +314,7 @@ function ClientDetails() {
             })
 
             await batch.commit()
-            
+
             toast.success('Movimiento eliminado y saldo actualizado')
             setClient(prev => ({ ...prev, currentDebt: (prev.currentDebt || 0) + debtChange }))
             fetchMovements(client.id)
@@ -335,7 +343,7 @@ function ClientDetails() {
 
     const executeReturnProduct = async () => {
         if (!productToReturn || !client) return
-        
+
         const qty = Number(quantityToReturn)
         if (qty <= 0 || qty > productToReturn.maxQuantity) {
             toast.error('Cantidad inválida')
@@ -349,55 +357,48 @@ function ClientDetails() {
             const batch = writeBatch(db)
 
             // 1. Restore Stock
-            const productRef = await refProductoPorCodigo(product.idProducto)
+            const productRef = await refProductoDeItem(product)
             if (productRef) batch.update(productRef, { cantidadProducto: increment(qty) })
 
-            // 2. Update Movement
+            // 2. Movimiento y venta espejo. Antes, una devolución parcial bajaba
+            // deuda y stock pero dejaba el movimiento igual: se podía devolver otra vez.
             const newProducts = [...movement.products]
-            let amountToReduce = 0
             const productPrice = getLocalPrice(product)
+            if (qty === productToReturn.maxQuantity) newProducts.splice(index, 1)
+            else newProducts[index] = { ...product, cantidad: product.cantidad - qty }
 
-            if (qty === productToReturn.maxQuantity) {
-                newProducts.splice(index, 1)
-                amountToReduce = productPrice * qty
-            } else {
-                newProducts[index] = {
-                    ...product,
-                    cantidad: product.cantidad - qty
-                }
-                amountToReduce = productPrice * qty
-            }
+            const subtotalAntes = movement.products.reduce((acc, p) => acc + getLocalPrice(p) * (Number(p.cantidad) || 0), 0)
+            const subtotalDespues = subtotalAntes - productPrice * qty
+            const descAntes = Number(movement.descuentoTotal) || 0
+            const descDespues = descuentoProporcional(descAntes, subtotalAntes, subtotalDespues)
+            const amountToReduce = (subtotalAntes - descAntes) - (subtotalDespues - descDespues)
 
-            // If no products left, delete the whole movement
-            if (newProducts.length === 0) {
-                // Reuse delete logic? simpler to just do it here to avoid state complexity
-                const movementRef = doc(db, `clients/${client.id}/movements`, movement.id)
-                batch.delete(movementRef)
-                
-                if (movement.saleId) {
-                    // Se lee la venta para mantener su array de productos en sincronía con el movimiento.
-                    const saleDocRef = doc(db, 'sales', movement.saleId)
-                    const saleSnap = await getDoc(saleDocRef)
-                    if (saleSnap.exists()) {
-                        const saleData = saleSnap.data()
-                        const saleProducts = [...saleData.productos]
-                        // Find product in sale products (by idProducto)
-                        const saleProdIndex = saleProducts.findIndex(p => p.idProducto === product.idProducto)
-                        
-                        if (saleProdIndex !== -1) {
-                            if (qty === productToReturn.maxQuantity) {
-                                saleProducts.splice(saleProdIndex, 1)
-                            } else {
-                                saleProducts[saleProdIndex].cantidad -= qty
-                            }
-                            
-                            batch.update(saleDocRef, {
-                                productos: saleProducts,
-                                totalVenta: saleData.totalVenta - amountToReduce,
-                                totalGanancia: (saleData.totalGanancia || 0) - ((productPrice - (product.precioOriginal || 0)) * qty)
-                            })
-                        }
+            const movementRef = doc(db, `clients/${client.id}/movements`, movement.id)
+            if (newProducts.length === 0) batch.delete(movementRef)
+            else batch.update(movementRef, { products: newProducts, amount: (Number(movement.amount) || 0) - amountToReduce, descuentoTotal: descDespues })
+
+            if (movement.saleId) {
+                const saleDocRef = doc(db, 'sales', movement.saleId)
+                const saleSnap = await getDoc(saleDocRef)
+                if (saleSnap.exists()) {
+                    const saleData = saleSnap.data()
+                    const saleProducts = [...(saleData.productos || [])]
+                    const saleProdIndex = saleProducts.findIndex(p =>
+                        product.docProducto ? p.docProducto === product.docProducto : p.idProducto === product.idProducto)
+                    const costo = Number(saleProducts[saleProdIndex]?.precioOriginal) || 0
+                    if (saleProdIndex !== -1) {
+                        if (saleProducts[saleProdIndex].cantidad <= qty) saleProducts.splice(saleProdIndex, 1)
+                        else saleProducts[saleProdIndex] = { ...saleProducts[saleProdIndex], cantidad: saleProducts[saleProdIndex].cantidad - qty }
                     }
+                    if (saleProducts.length === 0) batch.delete(saleDocRef)
+                    else batch.update(saleDocRef, {
+                        productos: saleProducts,
+                        subtotal: subtotalDespues,
+                        descuentoTotal: descDespues,
+                        totalVenta: (Number(saleData.totalVenta) || 0) - amountToReduce,
+                        // El descuento que se devuelve vuelve a ser ganancia.
+                        totalGanancia: (Number(saleData.totalGanancia) || 0) - (productPrice - costo) * qty + (descAntes - descDespues),
+                    })
                 }
             }
 
@@ -468,11 +469,11 @@ function ClientDetails() {
     if (!client) return null
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col">
+        <div className="flex flex-col gap-6 animate-in fade-in duration-500">
             {/* Header: la ficha del cliente es una tarjeta más, no texto suelto. */}
             <Card className="p-4 md:p-5 bg-slate-900/50 border-white/10 shrink-0">
                 <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6">
-                    <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
+                    <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1 lg:min-w-[21rem]">
                         <Button variant="ghost" onClick={() => navigate('/clientes')} className="p-2 shrink-0" aria-label="Volver a clientes">
                             <ArrowLeft className="w-5 h-5" />
                         </Button>
@@ -512,7 +513,7 @@ function ClientDetails() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:gap-3 lg:w-auto lg:min-w-[520px]">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:gap-3 lg:flex-1 lg:min-w-0">
                         {[
                             { Icon: Phone, label: 'Teléfono', value: client.phone, tone: 'bg-emerald-500/15 text-emerald-400' },
                             { Icon: IdCard, label: 'RUT', value: client.rut, tone: 'bg-purple-500/15 text-purple-400', mono: true },
@@ -533,10 +534,10 @@ function ClientDetails() {
                         ))}
                     </div>
 
-                    <Button 
+                    <Button
                         onClick={() => setIsPaymentModalOpen(true)}
-                        disabled={soloLectura}
-                        title={soloLectura ? TITULO_SOLO_LECTURA : undefined}
+                        disabled={soloLectura || deudaActual <= 0}
+                        title={soloLectura ? TITULO_SOLO_LECTURA : deudaActual <= 0 ? 'El cliente no tiene deuda' : undefined}
                         className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 px-8 lg:px-10 h-14 text-lg font-bold transition-all hover:scale-105 shrink-0"
                     >
                         <div className="flex items-center justify-center gap-2">
@@ -648,7 +649,7 @@ function ClientDetails() {
             </div>
 
             {/* Main Content Tabs */}
-            <div className="flex flex-col flex-1 min-h-0 bg-slate-950 border border-white/10 rounded-xl overflow-hidden">
+            <div className="flex flex-col max-h-[max(22rem,75dvh)] bg-slate-950 border border-white/10 rounded-xl overflow-hidden">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 p-4 bg-white/5 shrink-0">
                     <div className="flex items-center gap-2">
                         <button
@@ -707,7 +708,7 @@ function ClientDetails() {
                                     const dctoTotalMov = subtotalMov - (mov.amount || 0)
                                     return (
                                         <Fragment key={mov.id}>
-                                            <tr 
+                                            <tr
                                                 className={cn(
                                                     "hover:bg-white/5 group transition-colors border-b border-white/5 last:border-0",
                                                     activeTab === 'purchases' && "cursor-pointer"
@@ -732,8 +733,8 @@ function ClientDetails() {
                                                     <td className="px-4 py-3 align-top">
                                                         <span className={cn(
                                                             "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold border",
-                                                            mov.type === 'purchase' 
-                                                                ? "bg-red-500/10 text-red-400 border-red-500/20" 
+                                                            mov.type === 'purchase'
+                                                                ? "bg-red-500/10 text-red-400 border-red-500/20"
                                                                 : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                                         )}>
                                                             {mov.type === 'purchase' ? (
@@ -824,10 +825,11 @@ function ClientDetails() {
                                                                             </span>
                                                                             {!soloLectura && <button
                                                                                 onClick={() => initiateReturnProduct(mov, idx)}
-                                                                                className="p-1 text-slate-600 hover:text-red-400 opacity-0 group-hover/prod:opacity-100 transition-opacity"
-                                                                                title="Devolver Producto"
+                                                                                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-slate-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-md transition-colors"
+                                                                                title="Devolver producto al inventario"
+                                                                                aria-label={`Devolver ${p.nombreProducto}`}
                                                                             >
-                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                                <Undo2 className="w-3.5 h-3.5" /> Devolver
                                                                             </button>}
                                                                         </div>
                                                                     </div>
@@ -911,9 +913,9 @@ function ClientDetails() {
                         <Button variant="secondary" onClick={() => setShowDeleteClientModal(false)} disabled={isDeleting}>
                             Cancelar
                         </Button>
-                        <Button 
-                            className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
-                            onClick={handleDeleteClient} 
+                        <Button
+                            className="bg-red-500 hover:bg-red-600 text-on-accent border-none"
+                            onClick={handleDeleteClient}
                             disabled={isDeleting}
                         >
                             {isDeleting ? 'Eliminando...' : 'Eliminar Cliente'}
@@ -936,7 +938,7 @@ function ClientDetails() {
                         </div>
                         <h3 className="text-lg font-medium text-white">¿Eliminar este movimiento?</h3>
                         <p className="text-slate-400 text-sm">
-                            {itemToDelete?.type === 'purchase' 
+                            {itemToDelete?.type === 'purchase'
                                 ? "Se eliminará la venta, se restaurará el stock de los productos y se descontará de la deuda del cliente."
                                 : "Se eliminará el abono y la deuda del cliente aumentará."
                             }
@@ -946,9 +948,9 @@ function ClientDetails() {
                         <Button variant="secondary" onClick={() => setShowDeleteMovementModal(false)} disabled={isDeleting}>
                             Cancelar
                         </Button>
-                        <Button 
-                            className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
-                            onClick={executeDeleteMovement} 
+                        <Button
+                            className="bg-red-500 hover:bg-red-600 text-on-accent border-none"
+                            onClick={executeDeleteMovement}
                             disabled={isDeleting}
                         >
                             {isDeleting ? 'Eliminando...' : 'Confirmar Eliminación'}
@@ -976,8 +978,8 @@ function ClientDetails() {
                         <div className="space-y-2">
                             <label className="text-sm text-slate-400">Cantidad a devolver al inventario</label>
                             <div className="flex items-center gap-3">
-                                <Button 
-                                    variant="secondary" 
+                                <Button
+                                    variant="secondary"
                                     className="w-10 h-10 p-0"
                                     onClick={() => setQuantityToReturn(Math.max(1, quantityToReturn - 1))}
                                 >
@@ -991,8 +993,8 @@ function ClientDetails() {
                                     onChange={(e) => setQuantityToReturn(Number(e.target.value))}
                                     className="text-center font-mono"
                                 />
-                                <Button 
-                                    variant="secondary" 
+                                <Button
+                                    variant="secondary"
                                     className="w-10 h-10 p-0"
                                     onClick={() => setQuantityToReturn(Math.min(productToReturn.maxQuantity, quantityToReturn + 1))}
                                 >
@@ -1000,7 +1002,7 @@ function ClientDetails() {
                                 </Button>
                             </div>
                             <p className="text-xs text-slate-500 mt-1">
-                                {quantityToReturn === productToReturn.maxQuantity 
+                                {quantityToReturn === productToReturn.maxQuantity
                                     ? "Se eliminará el producto de la venta."
                                     : `Quedarán ${productToReturn.maxQuantity - quantityToReturn} unidad(es) en la venta.`
                                 }
@@ -1011,9 +1013,9 @@ function ClientDetails() {
                             <Button variant="secondary" onClick={() => setShowReturnProductModal(false)} disabled={isDeleting}>
                                 Cancelar
                             </Button>
-                            <Button 
-                                className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
-                                onClick={executeReturnProduct} 
+                            <Button
+                                className="bg-red-500 hover:bg-red-600 text-on-accent border-none"
+                                onClick={executeReturnProduct}
                                 disabled={isDeleting}
                             >
                                 {isDeleting ? 'Procesando...' : 'Confirmar Devolución'}
@@ -1029,21 +1031,33 @@ function ClientDetails() {
                 onClose={() => setIsPaymentModalOpen(false)}
                 title="Registrar Abono"
             >
-                <div className="space-y-4">
-                    <p className="text-slate-300">
-                        Ingresa el monto que el cliente <span className="font-bold text-white">{client.name}</span> está pagando.
-                    </p>
+                <form onSubmit={handlePayment} className="space-y-4">
+                    <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                        <span className="text-sm text-slate-300"><span className="font-bold text-white">{client.name}</span> debe</span>
+                        <span className="text-xl font-bold text-red-400 tabular-nums">{formatCLP(deudaActual)}</span>
+                    </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-400">Monto del Abono</label>
+                        <div className="flex items-center justify-between">
+                            <label htmlFor="monto-abono" className="text-sm font-medium text-slate-400">Monto del Abono</label>
+                            {deudaActual > 0 && (
+                                <button type="button" onClick={() => setPaymentAmount(String(deudaActual))} className="text-xs text-primary hover:underline">
+                                    Pagar todo
+                                </button>
+                            )}
+                        </div>
                         <Input
+                            id="monto-abono"
                             type="number"
                             value={paymentAmount}
                             onChange={(e) => setPaymentAmount(e.target.value)}
-                            placeholder="Ej: 5000"
+                            placeholder={deudaActual > 0 ? `Hasta ${formatCLP(deudaActual)}` : 'Sin deuda'}
+                            max={deudaActual}
                             autoFocus
+                            className={cn(abonoExcede && 'border-red-500/60 focus:ring-red-500/40')}
                         />
+                        {abonoExcede && <p className="text-xs text-red-400">Supera la deuda: el máximo es {formatCLP(deudaActual)}.</p>}
                     </div>
-                    
+
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-400">Método de Pago</label>
                         <div className="grid grid-cols-2 gap-3">
@@ -1077,16 +1091,16 @@ function ClientDetails() {
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4">
-                        <Button variant="secondary" onClick={() => setIsPaymentModalOpen(false)}>Cancelar</Button>
-                        <Button 
-                            onClick={handlePayment} 
-                            disabled={processingPayment || !paymentAmount || Number(paymentAmount) <= 0}
+                        <Button type="button" variant="secondary" onClick={() => setIsPaymentModalOpen(false)}>Cancelar</Button>
+                        <Button
+                            type="submit"
+                            disabled={processingPayment || !paymentAmount || Number(paymentAmount) <= 0 || abonoExcede}
                             className="bg-emerald-600 hover:bg-emerald-500"
                         >
                             {processingPayment ? 'Procesando...' : 'Confirmar Abono'}
                         </Button>
                     </div>
-                </div>
+                </form>
             </Modal>
 
             <ClienteForm

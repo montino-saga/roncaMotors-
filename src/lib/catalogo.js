@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { collection, onSnapshot, doc, getDocs, query, where } from 'firebase/firestore'
+import { collection, onSnapshot, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../db/firebase'
 import { indexarPorCodigo, buscarPorCodigo } from './buscarProductos'
 
@@ -64,4 +64,19 @@ export async function refProductoPorCodigo(idProducto) {
     if (enCatalogo) return doc(db, 'productos', enCatalogo.id)
     const snap = await getDocs(query(collection(db, 'productos'), where('idProducto', '==', idProducto)))
     return snap.empty ? null : doc(db, 'productos', snap.docs[0].id)
+}
+
+/**
+ * Producto de un ítem de venta, para devolverle stock. Las ventas nuevas
+ * guardan `docProducto` (id del documento): con códigos repetidos, buscar por
+ * código podía devolver el stock a otro producto. Si el documento ya no existe
+ * se devuelve null y no se adivina por código. Ventas antiguas: por código.
+ */
+export async function refProductoDeItem(item) {
+    if (item?.docProducto) {
+        if (estado.productos.some((p) => p.id === item.docProducto)) return doc(db, 'productos', item.docProducto)
+        const snap = await getDoc(doc(db, 'productos', item.docProducto))
+        return snap.exists() ? doc(db, 'productos', item.docProducto) : null
+    }
+    return refProductoPorCodigo(item?.idProducto)
 }

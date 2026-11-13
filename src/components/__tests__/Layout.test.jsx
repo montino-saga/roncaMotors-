@@ -41,7 +41,7 @@ describe('Layout', () => {
 
   it('nav completa con secciones, marca y usuario; la ruta activa marcada', () => {
     montar('/gastos')
-    for (const l of ['Cierre de Caja', 'Punto de Venta', 'Clientes', 'Pedidos Web', 'Gastos', 'Productos', 'Crear Producto', 'Dashboard', 'Análisis', 'Historial', 'Configuración']) {
+    for (const l of ['Cierre de Caja', 'Punto de Venta', 'Clientes', 'Pedidos Local', 'Pedidos Web', 'Gastos', 'Productos', 'Crear Producto', 'Dashboard', 'Análisis', 'Historial', 'Configuración']) {
       expect(screen.getByRole('link', { name: new RegExp(l) })).toBeInTheDocument()
     }
     expect(screen.getByText('Taller Norte')).toBeInTheDocument()
@@ -56,6 +56,13 @@ describe('Layout', () => {
     expect(document.title).toBe('Punto de Venta · Taller Norte')
     await user.click(screen.getByRole('link', { name: /Gastos/ }))
     expect(document.title).toBe('Gastos · Taller Norte')
+  })
+
+  it('/pedidos-web no marca ni titula como Pedidos Local', () => {
+    montar('/pedidos-web')
+    expect(document.title).toBe('Pedidos Web · Taller Norte')
+    expect(screen.getByRole('link', { name: /Pedidos Web/ })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: /Pedidos Local/ })).not.toHaveAttribute('aria-current')
   })
 
   it('navegar por el menú cambia la vista', async () => {

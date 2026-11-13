@@ -5,6 +5,7 @@
 export const CATEGORIAS = [
     { id: 'publicidad',  label: 'Publicidad',       color: 'pink' },
     { id: 'arriendo',    label: 'Arriendo',         color: 'blue' },
+    { id: 'suscripciones', label: 'Suscripciones',  color: 'indigo' },
     { id: 'servicios',   label: 'Servicios',        color: 'cyan' },
     { id: 'arreglos',    label: 'Arreglos',         color: 'orange' },
     { id: 'sueldos',     label: 'Sueldos',          color: 'purple' },
@@ -64,4 +65,43 @@ export function filtrarGastos(gastos, { categoria = '', texto = '' } = {}) {
         (!categoria || g.categoria === categoria) &&
         (!t || (g.descripcion || '').toLowerCase().includes(t) || categoriaDe(g.categoria).label.toLowerCase().includes(t))
     )
+}
+
+/* ------------------------------ Gastos fijos ------------------------------ */
+// Un gasto marcado como fijo crea una plantilla en `gastosRecurrentes`. Al
+// entrar a la app en un mes nuevo se registra solo como gasto "por pagar"
+// (`pagado: false`) y se marca pagado desde la lista.
+
+/** 'YYYY-MM': compara como texto en orden cronológico. */
+export const claveMes = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
+/** Día de pago dentro del mes; el 31 cae el último día en meses cortos. */
+export function vencimientoEn(dia, mes) {
+    const ultimo = new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate()
+    return new Date(mes.getFullYear(), mes.getMonth(), Math.min(Number(dia) || 1, ultimo), 12)
+}
+
+/**
+ * Meses que faltan por registrar desde `ultimoMes` (exclusivo) hasta el de
+ * `hoy` (inclusivo). Tope de 12: si nadie abrió la app en un año, no inundar.
+ */
+export function mesesPendientes(ultimoMes, hoy = new Date()) {
+    const actual = inicioMes(hoy)
+    if (!ultimoMes) return [actual]
+    const [y, m] = ultimoMes.split('-').map(Number)
+    const meses = []
+    for (let d = new Date(y, m, 1); d <= actual; d = mesSiguiente(d)) meses.push(d)
+    return meses.slice(-12)
+}
+
+/** Gasto "por pagar" que genera una plantilla en un mes. */
+export function gastoDeFijo(recurrenteId, r, mes) {
+    return {
+        fecha: vencimientoEn(r.dia, mes),
+        monto: Number(r.monto) || 0,
+        categoria: r.categoria || 'otro',
+        descripcion: r.nombre || '',
+        recurrenteId,
+        pagado: false,
+    }
 }

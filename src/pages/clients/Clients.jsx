@@ -244,12 +244,14 @@ function Clients() {
                             </div>
                             
                             <div className="bg-slate-950/50 rounded-lg p-3 flex justify-between items-center">
-                                <span className="text-xs text-slate-500 uppercase tracking-wider font-bold">Deuda Actual</span>
+                                <span className="text-xs text-slate-500 uppercase tracking-wider font-bold">
+                                    {(client.currentDebt || 0) < 0 ? 'Saldo a favor' : 'Deuda Actual'}
+                                </span>
                                 <span className={cn(
                                     "text-lg font-bold font-mono",
                                     client.currentDebt > 0 ? "text-red-400" : "text-emerald-400"
                                 )}>
-                                    {formatCLP(client.currentDebt || 0)}
+                                    {formatCLP(Math.abs(client.currentDebt || 0))}
                                 </span>
                             </div>
                         </Card>

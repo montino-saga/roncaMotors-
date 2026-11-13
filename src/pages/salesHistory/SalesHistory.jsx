@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { usePersistedState } from '../../hooks/usePersistedState'
-import { collection, getDoc, getDocs, orderBy, query, where, doc, writeBatch, increment, Timestamp } from 'firebase/firestore'
-import { refProductoPorCodigo, useCatalogo } from '../../lib/catalogo'
-import { descuentoItemsVenta, ventaConDescuento } from '../../lib/descuentos'
+import { collection, getDoc, getDocs, query, where, doc, writeBatch, increment, Timestamp } from 'firebase/firestore'
+import { refProductoDeItem, useCatalogo } from '../../lib/catalogo'
+import { descuentoItemsVenta, ventaConDescuento, descuentoProporcional } from '../../lib/descuentos'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Modal } from '../../components/ui/Modal'
 import { Input } from '../../components/ui/Input'
-import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, X, Trash2, AlertTriangle, ChevronDown, BarChart3, List, User, Pencil, Percent } from 'lucide-react'
+import { Search, Eye, Calendar, DollarSign, CreditCard, Banknote, Filter, Save, X, Trash2, AlertTriangle, ChevronDown, BarChart3, List, User, Pencil, Percent, Undo2 } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { toast } from 'sonner'
 import { Button } from '../../components/ui/Button'
@@ -15,6 +15,15 @@ import { Skeleton } from '../../components/ui/Skeleton'
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { usePermisos } from '../../hooks/usePermisos'
 import { SalesAnalytics } from './SalesAnalytics'
+import { esAbono, esIngresoReal, obtenerVentas, rangoDeVentas } from '../../lib/ventas'
+
+const selectedDateInicial = () => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
 
 function SalesHistory() {
     const { soloLectura } = usePermisos()
@@ -23,24 +32,21 @@ function SalesHistory() {
     const mostrarSkeleton = useDelayedLoading(loading)
     const [selectedSale, setSelectedSale] = useState(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
-    
+
     // View Mode State
     const [viewMode, setViewMode] = usePersistedState('roncamotors_sales_view', 'list') // 'list' | 'analytics'
 
     // Date Range State
-    const [dateRange, setDateRange] = usePersistedState('roncamotors_sales_range', 'day') // day, week, month, 3months, 6months, year
-    const [selectedDate, setSelectedDate] = useState(() => {
-        const now = new Date()
-        const year = now.getFullYear()
-        const month = String(now.getMonth() + 1).padStart(2, '0')
-        const day = String(now.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-    })
+    const [dateRange, setDateRange] = usePersistedState('roncamotors_sales_range', 'day') // day, week, month, 3months, 6months, year, custom
+    const [selectedDate, setSelectedDate] = useState(selectedDateInicial)
+    // Rango personalizado: por defecto desde el 1 del mes hasta hoy.
+    const [desdeCustom, setDesdeCustom] = useState(() => selectedDateInicial().slice(0, 8) + '01')
+    const [hastaCustom, setHastaCustom] = useState(selectedDateInicial)
 
     // Search & Filter State
     const [searchTerm, setSearchTerm] = useState('')
     const [paymentFilter, setPaymentFilter] = usePersistedState('roncamotors_sales_filter', 'todos')
-    
+
     // Edit Payment State
     const [isEditingPayment, setIsEditingPayment] = useState(false)
     const [newPaymentMethod, setNewPaymentMethod] = useState('')
@@ -79,55 +85,8 @@ function SalesHistory() {
         const fetchSales = async () => {
             setLoading(true)
             try {
-                // Parse selectedDate (YYYY-MM-DD) as local time
-                const [year, month, day] = selectedDate.split('-').map(Number)
-                
-                let start = new Date(year, month - 1, day, 0, 0, 0, 0)
-                let end = new Date(year, month - 1, day, 23, 59, 59, 999)
-
-                // Adjust start date based on range
-                if (dateRange !== 'day') {
-                    // Reset start to beginning of day
-                    start = new Date(year, month - 1, day, 0, 0, 0, 0)
-                    
-                    const anchorDate = new Date(year, month - 1, day, 23, 59, 59, 999)
-                    end = anchorDate
-                    
-                    const startDate = new Date(year, month - 1, day, 0, 0, 0, 0)
-                    
-                    switch (dateRange) {
-                        case 'week':
-                            startDate.setDate(startDate.getDate() - 6) // 7 days total including today
-                            break
-                        case 'month':
-                            startDate.setMonth(startDate.getMonth() - 1)
-                            break
-                        case '3months':
-                            startDate.setMonth(startDate.getMonth() - 3)
-                            break
-                        case '6months':
-                            startDate.setMonth(startDate.getMonth() - 6)
-                            break
-                        case 'year':
-                            startDate.setFullYear(startDate.getFullYear() - 1)
-                            break
-                    }
-                    start = startDate
-                }
-
-                const q = query(
-                    collection(db, 'sales'),
-                    where('fechaVenta', '>=', start),
-                    where('fechaVenta', '<=', end),
-                    orderBy('fechaVenta', 'desc')
-                )
-
-                const querySnapshot = await getDocs(q)
-                const salesData = []
-
-                querySnapshot.forEach((doc) => {
-                    salesData.push({ id: doc.id, ...doc.data() })
-                })
+                const rango = rangoDeVentas(dateRange, selectedDate, desdeCustom, hastaCustom)
+                const salesData = await obtenerVentas(rango.desde, rango.hasta)
 
                 setSales(salesData)
             } catch (error) {
@@ -139,7 +98,7 @@ function SalesHistory() {
         }
 
         fetchSales()
-    }, [selectedDate, dateRange])
+    }, [selectedDate, dateRange, desdeCustom, hastaCustom])
 
     const handleViewDetails = (sale) => {
         setSelectedSale(sale)
@@ -233,7 +192,7 @@ function SalesHistory() {
         setIsDeleting(true)
         const saleId = saleToDeleteId
         const saleToDelete = sales.find(s => s.id === saleId)
-        
+
         if (!saleToDelete) {
             setIsDeleting(false)
             setShowDeleteSaleModal(false)
@@ -246,7 +205,7 @@ function SalesHistory() {
             // 1. Restaurar stock
             // increment(): suma sobre el stock real del servidor, no sobre una lectura previa.
             for (const prod of saleToDelete.productos) {
-                const productRef = await refProductoPorCodigo(prod.idProducto)
+                const productRef = await refProductoDeItem(prod)
                 if (productRef) batch.update(productRef, { cantidadProducto: increment(prod.cantidad) })
             }
 
@@ -280,10 +239,10 @@ function SalesHistory() {
     const initiateReturnProduct = (index) => {
         if (!selectedSale) return
         const product = selectedSale.productos[index]
-        setProductToReturn({ 
-            index, 
-            product, 
-            maxQuantity: product.cantidad 
+        setProductToReturn({
+            index,
+            product,
+            maxQuantity: product.cantidad
         })
         setQuantityToReturn(1) // Default to returning 1
         setShowReturnProductModal(true)
@@ -301,17 +260,17 @@ function SalesHistory() {
         setIsDeleting(true)
         const productIndex = productToReturn.index
         const productToRemove = selectedSale.productos[productIndex]
-        
+
         try {
             const batch = writeBatch(db)
 
             // 1. Restaurar stock (cantidad devuelta)
-            const productRef = await refProductoPorCodigo(productToRemove.idProducto)
+            const productRef = await refProductoDeItem(productToRemove)
             if (productRef) batch.update(productRef, { cantidadProducto: increment(qty) })
 
             // 2. Actualizar venta
             const newProducts = [...selectedSale.productos]
-            
+
             if (qty === productToReturn.maxQuantity) {
                 // Eliminar producto completo si se devuelve todo
                 newProducts.splice(productIndex, 1)
@@ -328,9 +287,9 @@ function SalesHistory() {
                 await revertirFiado(batch, selectedSale)
                 const saleRef = doc(db, 'sales', selectedSale.id)
                 batch.delete(saleRef)
-                
+
                 await batch.commit()
-                
+
                 setSales(sales.filter(s => s.id !== selectedSale.id))
                 setIsModalOpen(false)
                 setSelectedSale(null)
@@ -341,14 +300,15 @@ function SalesHistory() {
             // Recalcular totales
             // Recalcular total venta sumando todos los items
             const newSubtotal = newProducts.reduce((acc, p) => acc + (p.cantidad * getLocalPrice(p)), 0)
-            const newDescuentoTotal = Math.min(selectedSale.descuentoTotal || 0, newSubtotal)
+            const subtotalAnterior = selectedSale.subtotal ?? ((selectedSale.totalVenta || 0) + (selectedSale.descuentoTotal || 0))
+            const newDescuentoTotal = descuentoProporcional(selectedSale.descuentoTotal, subtotalAnterior, newSubtotal)
             const newTotalVenta = newSubtotal - newDescuentoTotal
-            
+
             // Recalcular ganancia
             // Restamos la ganancia proporcional a la cantidad devuelta
             const profitPerUnit = (getLocalPrice(productToRemove) - (productToRemove.precioOriginal || 0))
             const profitToRemove = profitPerUnit * qty
-            // Si el descuento al total se recorta, esa parte vuelve a ser ganancia.
+            // El descuento baja en proporción: esa parte vuelve a ser ganancia.
             const newTotalGanancia = (selectedSale.totalGanancia || 0) - profitToRemove
                 + ((selectedSale.descuentoTotal || 0) - newDescuentoTotal)
 
@@ -364,15 +324,15 @@ function SalesHistory() {
             await batch.commit()
 
             // Update local state
-            const updatedSale = { 
-                ...selectedSale, 
-                productos: newProducts, 
+            const updatedSale = {
+                ...selectedSale,
+                productos: newProducts,
                 subtotal: newSubtotal,
                 descuentoTotal: newDescuentoTotal,
-                totalVenta: newTotalVenta, 
-                totalGanancia: newTotalGanancia 
+                totalVenta: newTotalVenta,
+                totalGanancia: newTotalGanancia
             }
-            
+
             setSelectedSale(updatedSale)
             setSales(sales.map(s => s.id === selectedSale.id ? updatedSale : s))
             toast.success(`Se devolvieron ${qty} unidad(es) al inventario`)
@@ -392,17 +352,17 @@ function SalesHistory() {
         if (paymentFilter !== 'todos' && sale.tipoPago !== paymentFilter) {
             return false
         }
-        
+
         // Search Filter
         if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase().trim()
             const idMatch = sale.id.toLowerCase().includes(term)
             const clientMatch = sale.nombreCliente?.toLowerCase().includes(term)
-            const productMatch = sale.productos.some(p => 
+            const productMatch = sale.productos.some(p =>
                 p.nombreProducto.toLowerCase().includes(term) ||
                 (p.idProducto && p.idProducto.toString().toLowerCase().includes(term))
             )
-            
+
             if (!idMatch && !productMatch && !clientMatch) return false
         }
 
@@ -411,10 +371,10 @@ function SalesHistory() {
 
     const totalSalesAmount = filteredSales.reduce((acc, sale) => {
         // No sumar fiado al total
-        if (sale.tipoPago === 'fiado') return acc
+        if (!esIngresoReal(sale)) return acc
         return acc + (sale.totalVenta || 0)
     }, 0)
-    const totalSalesCount = filteredSales.length
+    const totalSalesCount = filteredSales.filter(sale => !esAbono(sale)).length
 
     return (
         <div className="space-y-8">
@@ -433,8 +393,8 @@ function SalesHistory() {
                                 onClick={() => setViewMode('list')}
                                 className={cn(
                                     "flex items-center gap-2 px-3 rounded-lg text-sm font-medium transition-all",
-                                    viewMode === 'list' 
-                                        ? "bg-primary text-on-accent shadow" 
+                                    viewMode === 'list'
+                                        ? "bg-primary text-on-accent shadow"
                                         : "text-slate-400 hover:text-white hover:bg-white/5"
                                 )}
                             >
@@ -445,8 +405,8 @@ function SalesHistory() {
                                 onClick={() => setViewMode('analytics')}
                                 className={cn(
                                     "flex items-center gap-2 px-3 rounded-lg text-sm font-medium transition-all",
-                                    viewMode === 'analytics' 
-                                        ? "bg-primary text-on-accent shadow" 
+                                    viewMode === 'analytics'
+                                        ? "bg-primary text-on-accent shadow"
                                         : "text-slate-400 hover:text-white hover:bg-white/5"
                                 )}
                             >
@@ -457,12 +417,12 @@ function SalesHistory() {
 
                          {/* Stats Card - Hidden on mobile if analytics view active to save space? No, keep it. */}
                         <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-2 min-h-[42px] whitespace-nowrap">
-                            <div className="flex items-center gap-2 border-r border-white/10 pr-4">
+                            <div className="flex items-center gap-2 border-r border-white/10 pr-4" title="Efectivo + tarjeta + abonos de deuda. No incluye fiado.">
                                 <div className="bg-emerald-500/20 p-1.5 rounded-lg text-emerald-400">
                                     <DollarSign className="w-4 h-4" />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Total</p>
+                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none">Cobrado</p>
                                     <p className="text-lg font-bold text-emerald-400 leading-tight">
                                         {loading ? '...' : formatCLP(totalSalesAmount)}
                                     </p>
@@ -509,7 +469,7 @@ function SalesHistory() {
                                 <option value="fiado">Fiado</option>
                             </select>
                         </div>
-                        
+
                         <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10 flex-1 min-w-[140px]">
                             <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
                             <select
@@ -519,21 +479,45 @@ function SalesHistory() {
                             >
                                 <option value="day">Día específico</option>
                                 <option value="week">Última semana</option>
-                                <option value="month">Último mes</option>
+                                <option value="month">Este mes</option>
                                 <option value="3months">Últimos 3 meses</option>
                                 <option value="6months">Últimos 6 meses</option>
-                                <option value="year">Último año</option>
+                                <option value="year">Este año</option>
+                                <option value="custom">Personalizado</option>
                             </select>
                         </div>
 
-                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10 flex-1 min-w-[130px]">
-                            <input
-                                type="date"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                                className="bg-transparent border-none text-white focus:outline-none text-sm [&::-webkit-calendar-picker-indicator]:invert w-full"
-                            />
-                        </div>
+                        {dateRange === 'custom' ? (
+                            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10 flex-[2] min-w-[260px]">
+                                <span className="text-xs text-slate-400 shrink-0">Desde</span>
+                                <input
+                                    type="date"
+                                    aria-label="Desde"
+                                    value={desdeCustom}
+                                    max={hastaCustom}
+                                    onChange={(e) => e.target.value && setDesdeCustom(e.target.value)}
+                                    className="bg-transparent border-none text-white focus:outline-none text-sm [&::-webkit-calendar-picker-indicator]:invert w-full min-w-0"
+                                />
+                                <span className="text-xs text-slate-400 shrink-0">hasta</span>
+                                <input
+                                    type="date"
+                                    aria-label="Hasta"
+                                    value={hastaCustom}
+                                    min={desdeCustom}
+                                    onChange={(e) => e.target.value && setHastaCustom(e.target.value)}
+                                    className="bg-transparent border-none text-white focus:outline-none text-sm [&::-webkit-calendar-picker-indicator]:invert w-full min-w-0"
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10 flex-1 min-w-[130px]">
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                    className="bg-transparent border-none text-white focus:outline-none text-sm [&::-webkit-calendar-picker-indicator]:invert w-full"
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -562,8 +546,9 @@ function SalesHistory() {
                 <>
                     {viewMode === 'list' ? (
                         <Card className="overflow-hidden p-0 border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
-                                <table className="w-full text-left border-collapse">
+                            <div className="overflow-x-auto overflow-y-auto max-h-[max(22rem,calc(100dvh-280px))]">
+                                {/* Ancho mínimo: en celular la tabla se desplaza de lado en vez de partir cada fecha en 4 líneas. */}
+                                <table className="w-full min-w-[720px] text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-white/10 bg-white/5">
                                             <th className="px-4 py-2.5 font-medium text-slate-300 text-sm">Fecha</th>
@@ -610,7 +595,9 @@ function SalesHistory() {
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-2 text-slate-300">
-                                                        {sale.productos.length} items
+                                                        {esAbono(sale)
+                                                            ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Abono de deuda</span>
+                                                            : `${sale.productos.length} items`}
                                                     </td>
                                                     <td className="px-4 py-2">
                                                         <span className={cn(
@@ -623,7 +610,7 @@ function SalesHistory() {
                                                                         ? "bg-red-500/10 text-red-400 border-red-500/20"
                                                                         : "bg-slate-500/10 text-slate-400 border-slate-500/20"
                                                         )}>
-                                                            {sale.tipoPago === 'efectivo' ? <Banknote className="w-3 h-3" /> : 
+                                                            {sale.tipoPago === 'efectivo' ? <Banknote className="w-3 h-3" /> :
                                                              sale.tipoPago === 'fiado' ? <User className="w-3 h-3" /> :
                                                              <CreditCard className="w-3 h-3" />}
                                                             {sale.tipoPago}
@@ -764,10 +751,11 @@ function SalesHistory() {
                                             </p>
                                             {!soloLectura && <button
                                                 onClick={() => initiateReturnProduct(index)}
-                                                className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                                title="Devolver producto"
+                                                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors"
+                                                title="Devolver producto al inventario"
+                                                aria-label="Devolver producto"
                                             >
-                                                <Trash2 className="w-4 h-4" />
+                                                <Undo2 className="w-3.5 h-3.5" /> Devolver
                                             </button>}
                                         </div>
                                     </div>
@@ -830,9 +818,9 @@ function SalesHistory() {
                         <Button variant="secondary" onClick={() => setShowDeleteSaleModal(false)} disabled={isDeleting}>
                             Cancelar
                         </Button>
-                        <Button 
-                            className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
-                            onClick={executeDeleteSale} 
+                        <Button
+                            className="bg-red-500 hover:bg-red-600 text-on-accent border-none"
+                            onClick={executeDeleteSale}
                             disabled={isDeleting}
                         >
                             {isDeleting ? 'Eliminando...' : 'Eliminar Venta'}
@@ -860,8 +848,8 @@ function SalesHistory() {
                         <div className="space-y-2">
                             <label className="text-sm text-slate-400">Cantidad a devolver al inventario</label>
                             <div className="flex items-center gap-3">
-                                <Button 
-                                    variant="secondary" 
+                                <Button
+                                    variant="secondary"
                                     className="w-10 h-10 p-0"
                                     onClick={() => setQuantityToReturn(Math.max(1, quantityToReturn - 1))}
                                 >
@@ -875,8 +863,8 @@ function SalesHistory() {
                                     onChange={(e) => setQuantityToReturn(Number(e.target.value))}
                                     className="text-center font-mono"
                                 />
-                                <Button 
-                                    variant="secondary" 
+                                <Button
+                                    variant="secondary"
                                     className="w-10 h-10 p-0"
                                     onClick={() => setQuantityToReturn(Math.min(productToReturn.maxQuantity, quantityToReturn + 1))}
                                 >
@@ -884,7 +872,7 @@ function SalesHistory() {
                                 </Button>
                             </div>
                             <p className="text-xs text-slate-500 mt-1">
-                                {quantityToReturn === productToReturn.maxQuantity 
+                                {quantityToReturn === productToReturn.maxQuantity
                                     ? "Se eliminará el producto de la venta."
                                     : `Quedarán ${productToReturn.maxQuantity - quantityToReturn} unidad(es) en la venta.`
                                 }
@@ -895,9 +883,9 @@ function SalesHistory() {
                             <Button variant="secondary" onClick={() => setShowReturnProductModal(false)} disabled={isDeleting}>
                                 Cancelar
                             </Button>
-                            <Button 
-                                className="bg-red-500 hover:bg-red-600 text-on-accent border-none" 
-                                onClick={executeReturnProduct} 
+                            <Button
+                                className="bg-red-500 hover:bg-red-600 text-on-accent border-none"
+                                onClick={executeReturnProduct}
                                 disabled={isDeleting}
                             >
                                 {isDeleting ? 'Procesando...' : 'Confirmar Devolución'}

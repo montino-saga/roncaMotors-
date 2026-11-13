@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { firestoreMock, escrituras, coleccionesFake, emitirCatalogo, resetFirebaseMock } from '../../../test/firebaseMock'
 
@@ -81,5 +81,38 @@ describe('Historial de ventas', () => {
     expect(escrituras.updates).toContainEqual({ ref: 'productos/d1', data: { cantidadProducto: { __increment: 2 } } })
     // '7801' no está en el catálogo → 1 consulta al servidor; ABC123 ninguna.
     expect(firestoreMock.getDocs.mock.calls.filter(([q]) => q?.path === 'productos')).toHaveLength(1)
+  })
+
+  it('con códigos repetidos, el stock vuelve al producto vendido (docProducto), no al primero con ese código', async () => {
+    emitirCatalogo([
+      { id: 'coca', idProducto: '1', nombreProducto: 'coca cola', cantidadProducto: 5 },
+      { id: 'monster', idProducto: '1', nombreProducto: 'Monster Blanco', cantidadProducto: 9 },
+    ])
+    coleccionesFake.sales = [{ id: 'vM', fechaVenta: ts(hoy), tipoPago: 'tarjeta', totalVenta: 2000, totalGanancia: 500,
+      productos: [{ idProducto: '1', docProducto: 'monster', nombreProducto: 'Monster Blanco', cantidad: 1, precioVentaLocal: 2000, precioOriginal: 1500 }] }]
+    const user = userEvent.setup()
+    render(<SalesHistory />)
+    const fila = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('$2.000'))
+    await user.click(within(fila).getByTitle('Eliminar Venta'))
+    const dlg = await screen.findByRole('dialog', { name: /Eliminar/i })
+    await user.click(within(dlg).getByRole('button', { name: /Eliminar/ }))
+    await waitFor(() => expect(escrituras.deletes).toContain('sales/vM'))
+    expect(escrituras.updates).toEqual([{ ref: 'productos/monster', data: { cantidadProducto: { __increment: 1 } } }])
+  })
+
+  it('rango personalizado: desde/hasta consultan ese período completo', async () => {
+    const user = userEvent.setup()
+    render(<SalesHistory />)
+    await screen.findAllByRole('row')
+    await user.selectOptions(screen.getByDisplayValue('Día específico'), 'custom')
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-09-01' } })
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-09-30' } })
+    await waitFor(() => {
+      const llamadas = firestoreMock.where.mock.calls.filter(([campo]) => campo === 'fechaVenta')
+      const desde = llamadas.findLast(([, op]) => op === '>=')[2].toDate()
+      const hasta = llamadas.findLast(([, op]) => op === '<=')[2].toDate()
+      expect(desde).toEqual(new Date(2026, 8, 1))
+      expect(hasta).toEqual(new Date(2026, 8, 30, 23, 59, 59, 999))
+    })
   })
 })

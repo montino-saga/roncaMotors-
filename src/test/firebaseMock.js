@@ -66,6 +66,16 @@ export const firestoreMock = {
   updateDoc: vi.fn(async (r, data) => { escrituras.updates.push({ ref: r.path, data }) }),
   setDoc: vi.fn(async (r, data) => { escrituras.sets.push({ ref: r.path, data }) }),
   deleteDoc: vi.fn(async (r) => { escrituras.deletes.push(r.path) }),
+  // Transacción: lee de coleccionesFake por id y anota las escrituras igual que un batch.
+  runTransaction: vi.fn(async (_db, fn) => fn({
+    get: async (r) => {
+      const [coll, id] = r.path.split('/')
+      const d = (coleccionesFake[coll] || []).find((x) => x.id === id)
+      return { exists: () => !!d, data: () => d, id }
+    },
+    set: (r, data) => escrituras.sets.push({ ref: r.path, data }),
+    update: (r, data) => escrituras.updates.push({ ref: r.path, data }),
+  })),
   writeBatch: vi.fn(() => ({
     set: (r, data) => escrituras.sets.push({ ref: r.path, data }),
     update: (r, data) => escrituras.updates.push({ ref: r.path, data }),

@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
     Package, PlusCircle, LayoutDashboard, ShoppingCart, BarChart3, History,
     Globe, Lock, PanelLeft, PanelLeftClose, User, LogOut, Menu, Settings,
-    Search, Sun, Moon, Plus, FlaskConical, Receipt, Sparkles, Bell, Users
+    Search, Sun, Moon, Plus, FlaskConical, Receipt, Sparkles, Bell, Users, ClipboardList
 } from "lucide-react";
 import {
     motion, MotionConfig, animate, useMotionValue, useSpring,
@@ -25,6 +25,7 @@ import { useNovedades } from "../hooks/useNovedades";
 import { useAvisos } from "../hooks/useAvisos";
 import { VERSION_ACTUAL } from "../lib/releases";
 import { rolDe, esDesarrollador, puedeEscribir } from "../lib/usuarios";
+import { asegurarGastosFijos } from "../lib/gastosFijos";
 
 const W_OPEN = 264;
 const W_SHUT = 76;
@@ -51,6 +52,7 @@ const navSections = [
             { href: "/", label: "Cierre de Caja", icon: Lock },
             { href: "/ventas", label: "Punto de Venta", icon: ShoppingCart },
             { href: "/clientes", label: "Clientes", icon: User },
+            { href: "/pedidos", label: "Pedidos Local", icon: ClipboardList },
             { href: "/pedidos-web", label: "Pedidos Web", icon: Globe },
             { href: "/gastos", label: "Gastos", icon: Receipt },
         ]
@@ -79,8 +81,9 @@ const navSections = [
     }
 ];
 
+// Por segmento: "/pedidos" no debe marcar "/pedidos-web" como activa.
 const isRouteActive = (pathname, href) =>
-    pathname === href || (href !== "/" && pathname.startsWith(href));
+    pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
 
 // Acción principal de cada vista para la barra móvil: lo que se hace más en
 // esa pantalla, a un toque, sin buscar el botón dentro del contenido.
@@ -143,6 +146,12 @@ export function Layout({ children }) {
     const novedades = useNovedades();
     const avisos = useAvisos();
     const [avisosOpen, setAvisosOpen] = useState(false);
+
+    // Gastos fijos del mes: se registran al entrar, sin esperar a abrir la vista Gastos.
+    const puedeGenerar = !!user && puedeEscribir(perfil);
+    useEffect(() => {
+        if (puedeGenerar) asegurarGastosFijos(user.uid);
+    }, [puedeGenerar, user?.uid]);
     const dev = esDesarrollador(perfil);
     const secciones = useMemo(() => navSections.map((s) => ({
         ...s,

@@ -222,16 +222,27 @@
 }
 
 /* Altura exacta del área de contenido: el <main> del Layout aporta py-4 (2rem)
-   y, por debajo de md, la barra superior de 3.5rem. Una página con .page-fit
-   nunca genera scroll propio; el scroll vive dentro de sus paneles. */
+   y, por debajo de md, la barra superior de 3.5rem. Con pantalla de sobra el
+   scroll vive dentro de los paneles; en pantallas bajas (notebook HD, celular
+   apaisado, zoom) el min-height evita que se aplasten y la página hace scroll.
+   - .page-fit: alto fijo en todos los anchos (POS, productos).
+   - .vista-fija: alto fijo solo desde lg; debajo la vista fluye y hace scroll. */
 .page-fit {
     height: calc(100dvh - 5.5rem);
-    min-height: 0;
+    min-height: 32rem;
 }
 
 @media (min-width: 48rem) {
     .page-fit {
         height: calc(100dvh - 2rem);
+        min-height: 36rem;
+    }
+}
+
+@media (min-width: 64rem) {
+    .vista-fija {
+        height: calc(100dvh - 2rem);
+        min-height: 42rem;
     }
 }
 

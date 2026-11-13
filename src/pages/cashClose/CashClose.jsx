@@ -12,6 +12,7 @@ import { Skeleton, SkeletonCard, SkeletonKpis, SkeletonHeader } from '../../comp
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { usePermisos, TITULO_SOLO_LECTURA } from '../../hooks/usePermisos'
 import { useAuth } from '../../context/AuthContext'
+import { CierresAnteriores } from './CierresAnteriores'
 
 function CashClose() {
     const { soloLectura } = usePermisos()
@@ -21,7 +22,7 @@ function CashClose() {
     const [session, setSession] = useState(null)
     const [cashSales, setCashSales] = useState(0)
     const [movements, setMovements] = useState([])
-    
+
     // Forms State
     const [openingAmount, setOpeningAmount] = useState('')
     const [closingCount, setClosingCount] = useState('')
@@ -33,6 +34,7 @@ function CashClose() {
 
     // Confirm Close Modal State
     const [showConfirmCloseModal, setShowConfirmCloseModal] = useState(false)
+    const [verCierres, setVerCierres] = useState(false)
 
     // Índice (en `movements`) del movimiento a eliminar
     const [movementToDelete, setMovementToDelete] = useState(null)
@@ -51,14 +53,14 @@ function CashClose() {
                 limit(1)
             )
             const snapshot = await getDocs(q)
-            
+
             if (!snapshot.empty) {
                 const sessionData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() }
                 setSession(sessionData)
-                
+
                 // 2. Fetch Cash Sales since opening
                 await calculateCashSales(sessionData.openingTime)
-                
+
                 // 3. Set movements from session doc if any (assuming stored in array, or subcollection)
                 // For simplicity, let's store them in the doc itself as arrays 'expenses' and 'incomes'
                 // or just one 'movements' array
@@ -94,9 +96,10 @@ function CashClose() {
         }
     }
 
-    const handleOpenRegister = async () => {
+    const handleOpenRegister = async (e) => {
+        e?.preventDefault?.()
         if (!openingAmount || isNaN(openingAmount)) return toast.error("Ingresa un monto válido")
-        
+
         setProcessing(true)
         try {
             const newSession = {
@@ -106,7 +109,7 @@ function CashClose() {
                 userId: user?.uid || null,
                 movements: []
             }
-            
+
             const docRef = await addDoc(collection(db, 'cash_registers'), newSession)
             setSession({ id: docRef.id, ...newSession })
             setCashSales(0)
@@ -121,9 +124,11 @@ function CashClose() {
         }
     }
 
-    const handleAddMovement = async () => {
-        if (!movementAmount || !movementDescription) return
-        
+    const handleAddMovement = async (e) => {
+        e?.preventDefault?.()
+        if (!movementAmount) return toast.error("Ingresa un monto válido")
+        if (!movementDescription.trim()) return toast.error("Escribe una descripción o motivo")
+
         const amount = Number(movementAmount)
         if (!(amount > 0)) return toast.error("Ingresa un monto válido")
         if (movementType === 'expense' && amount > expectedBalance) {
@@ -138,14 +143,14 @@ function CashClose() {
                 description: movementDescription,
                 time: Timestamp.now()
             }
-            
+
             const updatedMovements = [...(session.movements || []), newMovement]
             const sessionRef = doc(db, 'cash_registers', session.id)
-            
+
             await updateDoc(sessionRef, {
                 movements: updatedMovements
             })
-            
+
             setSession({ ...session, movements: updatedMovements })
             setMovements(updatedMovements)
             setShowMovementModal(false)
@@ -194,7 +199,7 @@ function CashClose() {
             const realCount = Number(closingCount)
             const totalExpenses = movements.filter(m => m.type === 'expense').reduce((acc, m) => acc + m.amount, 0)
             const totalIncomes = movements.filter(m => m.type === 'income').reduce((acc, m) => acc + m.amount, 0)
-            
+
             const expectedBalance = session.openingBalance + cashSales + totalIncomes - totalExpenses
             const difference = realCount - expectedBalance
 
@@ -211,7 +216,7 @@ function CashClose() {
 
             const sessionRef = doc(db, 'cash_registers', session.id)
             await updateDoc(sessionRef, closingData)
-            
+
             setSession(null)
             setClosingCount('')
             setShowConfirmCloseModal(false)
@@ -256,35 +261,38 @@ function CashClose() {
                 <p className="text-slate-400 text-center max-w-md">
                     Para comenzar a vender, debes abrir la caja ingresando el fondo inicial (sencillo).
                 </p>
-                <Card className="w-full max-w-md p-6 space-y-4">
+                <Card className="w-full max-w-md p-6">
+                    <form onSubmit={handleOpenRegister} className="space-y-4">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-300">Fondo Inicial</label>
                         <div className="relative">
                             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                            <Input 
-                                type="number" 
-                                placeholder="0" 
+                            <Input
+                                type="number"
+                                placeholder="0"
                                 className="pl-9 text-lg"
                                 value={openingAmount}
                                 onChange={(e) => setOpeningAmount(e.target.value)}
                             />
                         </div>
                     </div>
-                    <Button 
+                    <Button
+                        type="submit"
                         className="w-full h-12 text-lg bg-emerald-600 hover:bg-emerald-500"
-                        onClick={handleOpenRegister}
                         disabled={soloLectura || processing}
                         title={soloLectura ? TITULO_SOLO_LECTURA : undefined}
                     >
                         {processing ? 'Abriendo...' : 'Abrir Caja'}
                     </Button>
+                    </form>
                 </Card>
+                <CierresAnteriores className="max-w-2xl pt-4" />
             </div>
         )
     }
 
     return (
-        <div className="flex flex-col gap-4 animate-in fade-in duration-500 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
+        <div className="vista-fija flex flex-col gap-4 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
                 <div>
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -295,7 +303,11 @@ function CashClose() {
                         Turno iniciado: {session.openingTime.toDate().toLocaleString('es-CL')}
                     </p>
                 </div>
-                {!soloLectura && <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
+                    <Button variant="secondary" onClick={() => setVerCierres(true)} className="inline-flex items-center gap-1.5">
+                        <History className="w-4 h-4" /> Cierres
+                    </Button>
+                {!soloLectura && <>
                     <Button variant="secondary" onClick={() => {
                         setMovementType('income')
                         setShowMovementModal(true)
@@ -308,8 +320,12 @@ function CashClose() {
                     }}>
                         - Gasto/Retiro
                     </Button>
-                </div>}
+                </>}
+                </div>
             </div>
+            <Modal isOpen={verCierres} onClose={() => setVerCierres(false)} title="Cierres anteriores" className="max-w-2xl">
+                <CierresAnteriores />
+            </Modal>
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
@@ -389,9 +405,9 @@ function CashClose() {
                             <label className="text-sm font-medium text-slate-300">Total Real en Efectivo</label>
                             <div className="relative">
                                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                                <Input 
-                                    type="number" 
-                                    placeholder="0" 
+                                <Input
+                                    type="number"
+                                    placeholder="0"
                                     className="pl-9 h-12 text-lg bg-slate-950 border-red-500/20 focus:ring-red-500/50"
                                     value={closingCount}
                                     onChange={(e) => setClosingCount(e.target.value)}
@@ -402,8 +418,8 @@ function CashClose() {
                         {closingCount && (
                             <div className={cn(
                                 "p-4 rounded-lg border",
-                                difference >= 0 
-                                    ? "bg-emerald-500/10 border-emerald-500/20" 
+                                difference >= 0
+                                    ? "bg-emerald-500/10 border-emerald-500/20"
                                     : "bg-red-500/10 border-red-500/20"
                             )}>
                                 <div className="flex justify-between items-center">
@@ -418,7 +434,7 @@ function CashClose() {
                             </div>
                         )}
 
-                        <Button 
+                        <Button
                             className="w-full h-12 bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20"
                             onClick={initiateCloseRegister}
                             disabled={soloLectura || processing || !closingCount}
@@ -436,33 +452,33 @@ function CashClose() {
                 onClose={() => setShowMovementModal(false)}
                 title={movementType === 'income' ? 'Registrar Ingreso' : 'Registrar Gasto/Retiro'}
             >
-                <div className="space-y-4">
+                <form onSubmit={handleAddMovement} className="space-y-4">
                     <div className="space-y-2">
                         <label className="text-sm text-slate-400">Monto</label>
-                        <Input 
-                            type="number" 
+                        <Input
+                            type="number"
                             autoFocus
-                            value={movementAmount} 
+                            value={movementAmount}
                             onChange={(e) => setMovementAmount(e.target.value)}
                             placeholder="0"
                         />
                     </div>
                     <div className="space-y-2">
                         <label className="text-sm text-slate-400">Descripción / Motivo</label>
-                        <Input 
-                            type="text" 
-                            value={movementDescription} 
+                        <Input
+                            type="text"
+                            value={movementDescription}
                             onChange={(e) => setMovementDescription(e.target.value)}
                             placeholder={movementType === 'income' ? 'Ej: Cambio inicial extra' : 'Ej: Pago proveedor pan'}
                         />
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
-                        <Button variant="secondary" onClick={() => setShowMovementModal(false)}>Cancelar</Button>
-                        <Button onClick={handleAddMovement} disabled={processing}>
+                        <Button type="button" variant="secondary" onClick={() => setShowMovementModal(false)}>Cancelar</Button>
+                        <Button type="submit" disabled={processing}>
                             Guardar
                         </Button>
                     </div>
-                </div>
+                </form>
             </Modal>
 
             {/* Delete Movement Modal */}
@@ -515,7 +531,7 @@ function CashClose() {
                         <p className="text-slate-400">
                             Esta acción finalizará el turno actual y registrará el balance final. No se puede deshacer.
                         </p>
-                        
+
                         <div className="bg-white/5 p-4 rounded-xl w-full border border-white/10 mt-4">
                             <div className="flex justify-between text-sm mb-2">
                                 <span className="text-slate-400">Total Esperado:</span>
@@ -536,14 +552,14 @@ function CashClose() {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="flex justify-end gap-3">
                         <Button variant="secondary" onClick={() => setShowConfirmCloseModal(false)} disabled={processing}>
                             Cancelar
                         </Button>
-                        <Button 
-                            className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20 border-none" 
-                            onClick={executeCloseRegister} 
+                        <Button
+                            className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20 border-none"
+                            onClick={executeCloseRegister}
                             disabled={processing}
                         >
                             {processing ? 'Cerrando...' : 'Confirmar Cierre'}

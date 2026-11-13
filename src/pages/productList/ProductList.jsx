@@ -24,7 +24,8 @@ const VENTANA_DIAS = 90        // ventana de rotación
 const MARGEN_MINIMO = 10       // % sobre precio de venta por debajo del cual avisamos
 
 const DIA_MS = 86_400_000
-const money = (n) => `$${Math.round(n).toLocaleString('es-CL')}`
+// Signo antes del $ ("-$119"), igual que formatCLP.
+const money = (n) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLocaleString('es-CL')}`
 
 /** Cifra primero, etiqueta debajo: el dato es el titular, no el rótulo. */
 function Metric({ value, label, tone = 'text-white', icon: Icon, onClick, active, title }) {
@@ -337,7 +338,7 @@ function ProductList() {
 
   return (
     <div className="page-fit flex flex-col gap-3 tall:gap-5">
-      <div className="shrink-0 flex flex-col xl:flex-row xl:items-center justify-between gap-3 tall:gap-4">
+      <div className="shrink-0 flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3 tall:gap-4">
         {/* Los datos ocupan el sitio que antes tenía el rótulo: el sidebar ya
             indica que estás en Productos, repetirlo no informaba de nada. */}
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap
@@ -384,8 +385,8 @@ function ProductList() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap gap-2 flex-1 xl:flex-none">
-            <div className="relative flex-1 min-w-[150px] xl:flex-none">
+          <div className="flex flex-wrap gap-2 flex-1 2xl:flex-none">
+            <div className="relative flex-1 min-w-[150px] 2xl:flex-none">
               <input
                 type="text"
                 placeholder="Buscar..."
@@ -394,7 +395,7 @@ function ProductList() {
                   setSearchTerm(e.target.value)
                   setCurrentPage(1)
                 }}
-                className="pl-9 pr-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full xl:w-48 transition-colors"
+                className="pl-9 pr-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full 2xl:w-48 transition-colors"
               />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             </div>

@@ -20,7 +20,7 @@ function Settings() {
     const [empresa, setEmpresa] = useState(null)
 
     return (
-        <div className="flex flex-col gap-4 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
+        <div className="vista-fija flex flex-col gap-4">
             <div className="shrink-0">
                 <h1 className="text-2xl font-bold text-white">Configuración</h1>
                 <p className="text-sm text-slate-400">Empresa y preferencias</p>

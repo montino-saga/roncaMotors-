@@ -18,7 +18,7 @@ import { desdeMargen, margenImplicito, formulaReferencia, indicadores } from '..
 
 const ATAJOS = [20, 30, 40, 50]
 
-const clp = (n) => `$${Math.round(n).toLocaleString('es-CL')}`
+const clp = (n) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLocaleString('es-CL')}`
 
 /**
  * Un precio que se puede escribir de dos formas. El conmutador cambia cuál de

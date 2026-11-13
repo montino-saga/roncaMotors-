@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -83,6 +83,15 @@ function EditProduct() {
     const handleSubmit = async (e) => {
         e.preventDefault()
         try {
+            // Mismo control que al crear: el código es la clave para escanear y no puede repetirse.
+            const codigo = String(producto.idProducto ?? '').trim()
+            if (codigo && codigo !== String(original?.idProducto ?? '').trim()) {
+                const iguales = await getDocs(query(collection(db, 'productos'), where('idProducto', '==', codigo)))
+                if (iguales.docs.some(d => d.id !== id)) {
+                    toast.error('Ese código ya lo usa otro producto', { description: 'Escanear el código agregaría el otro producto.' })
+                    return
+                }
+            }
             const docRef = doc(db, 'productos', id)
             await updateDoc(docRef, {
                 ...producto,
@@ -238,7 +247,6 @@ function EditProduct() {
                                             placeholder="$0"
                                             value={producto.precioVentaWeb}
                                             onChange={handleChange}
-                                            required
                                             className="border-sky-500/20 focus:border-sky-500/50"
                                         />
                                     </div>

@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { CurrencyInput } from '../../components/ui/CurrencyInput'
-import { Search, Trash2, ShoppingCart, CreditCard, Banknote, User, Package, Minus, Plus, AlertTriangle, FileText, Percent } from 'lucide-react'
+import { Search, Trash2, ShoppingCart, CreditCard, Banknote, User, Package, Minus, Plus, AlertTriangle, FileText, Percent, Lock } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { SPRING, PRESS } from '../../lib/motion'
 import { toast } from 'sonner'
@@ -18,6 +18,8 @@ import { printer } from '../../lib/printer'
 import { sounds } from '../../lib/sounds'
 import { useTheme } from '../../context/ThemeContext'
 import { useCatalogo } from '../../lib/catalogo'
+import { useCajaAbierta } from '../../hooks/useCajaAbierta'
+import { Link } from 'react-router-dom'
 import { buscarPorCodigo, filtrarCatalogo } from '../../lib/buscarProductos'
 import { precioLista, precioCobrado, calcularDescuento, aplicarDescuentoItem, quitarDescuentoItem, subtotalCarrito, descuentoTotalAcotado, totalesCarrito } from '../../lib/descuentos'
 
@@ -58,6 +60,7 @@ function Deslizable({ enabled, onDelete, children }) {
 
 function Sales() {
     const { soloLectura } = usePermisos()
+    const cajaAbierta = useCajaAbierta()
     const { settings } = useTheme()
     const [cart, setCart] = usePersistedState('roncamotors_pos_cart', [])
     const [productId, setProductId] = useState('')
@@ -364,13 +367,17 @@ function Sales() {
 
     const handleCheckout = async () => {
         if (cart.length === 0 || processing) return
+        if (cajaAbierta === false) {
+            toast.error('La caja está cerrada', { description: 'Ábrela en Cierre de Caja para poder vender.' })
+            return
+        }
 
         if (paymentType === 'fiado') {
             setIsDebtModalOpen(true)
             fetchClients()
             return
         }
-        
+
         await executeSale()
     }
 
@@ -404,6 +411,7 @@ function Sales() {
                 idUsuario: "rSgG4AQYn5OU5hvLGfuLTCpnCWS2", // Hardcoded as requested
                 productos: cart.map(item => ({
                     idProducto: item.idProducto,
+                    docProducto: item.id,
                     nombreProducto: item.nombreProducto,
                     marcaProducto: item.marcaProducto || '',
                     categoriaProducto: item.categoriaProducto || '',
@@ -487,12 +495,13 @@ function Sales() {
             // 1. Create Sale Document
             const saleRef = doc(collection(db, 'sales'))
             const clientDoc = clients.find(c => c.id === selectedClientId)
-            
+
             const saleData = {
                 fechaVenta: Timestamp.now(),
                 idUsuario: "rSgG4AQYn5OU5hvLGfuLTCpnCWS2", // Hardcoded as requested
                 productos: cart.map(item => ({
                     idProducto: item.idProducto,
+                    docProducto: item.id,
                     nombreProducto: item.nombreProducto,
                     marcaProducto: item.marcaProducto || '',
                     categoriaProducto: item.categoriaProducto || '',
@@ -524,6 +533,7 @@ function Sales() {
                 date: Timestamp.now(),
                 products: cart.map(item => ({
                     idProducto: item.idProducto,
+                    docProducto: item.id,
                     nombreProducto: item.nombreProducto,
                     cantidad: item.cantidad,
                     precio: getLocalPrice(item)
@@ -672,7 +682,7 @@ function Sales() {
                                         inputMode="numeric"
                                         value={discountValue}
                                         onChange={(e) => setDiscountValue(e.target.value)}
-                                        placeholder="10"
+                                        placeholder="Ej: 10"
                                         className="h-12 text-lg pr-10 font-bold"
                                         autoFocus
                                     />
@@ -814,7 +824,7 @@ function Sales() {
                     <p className="text-slate-300">
                         Busca al cliente para cargar la venta de <span className="font-bold text-white">{formatCLP(calculateTotal())}</span>.
                     </p>
-                    
+
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <Input
@@ -1049,6 +1059,13 @@ function Sales() {
                             </button>
                         </div>
 
+                        {cajaAbierta === false && (
+                            <Link to="/" className="flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs sm:text-sm hover:bg-amber-500/15">
+                                <Lock className="w-4 h-4 shrink-0" />
+                                <span className="flex-1">Caja cerrada: ábrela para poder vender.</span>
+                                <span className="font-semibold underline shrink-0">Abrir caja</span>
+                            </Link>
+                        )}
                         <div className="flex gap-2">
                         {/* Móvil: cotizar es el uso principal desde el teléfono,
                             va junto al botón de cobro. En sm+ vive en la cabecera
@@ -1071,8 +1088,8 @@ function Sales() {
                                     ? "bg-amber-600 hover:bg-amber-500 shadow-amber-500/20"
                                     : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20"
                             )}
-                            disabled={soloLectura || cart.length === 0 || processing}
-                            title={soloLectura ? TITULO_SOLO_LECTURA : undefined}
+                            disabled={soloLectura || cart.length === 0 || processing || cajaAbierta === false}
+                            title={soloLectura ? TITULO_SOLO_LECTURA : cajaAbierta === false ? 'Abre la caja para vender' : undefined}
                         >
                             {processing ? 'Procesando...' : paymentType === 'fiado' ? 'Seleccionar Cliente' : 'Finalizar Venta'}
                         </Button>
@@ -1161,7 +1178,7 @@ function Sales() {
                                         className="flex items-center gap-2.5 @md:gap-4 p-2 @md:p-3 rounded-xl
                                                    bg-slate-950/50 border border-white/10 hover:border-white/20
                                                    transition-colors reduce-transparency:bg-slate-950
-                                                   flex-wrap @md:flex-nowrap"
+                                                   flex-wrap @2xl:flex-nowrap"
                                     >
                                         <div className="w-11 h-11 @md:w-14 @md:h-14 rounded-lg bg-white/[0.07] overflow-hidden shrink-0 grid place-items-center">
                                             {item.imagenProducto ? (
@@ -1183,7 +1200,7 @@ function Sales() {
 
                                         {/* Estrecho: el subtotal sube junto al nombre, donde se
                                             busca primero. En ancho se coloca entre el ± y el %. */}
-                                        <div className="text-right shrink-0 @md:order-3 @md:min-w-[104px]">
+                                        <div className="text-right shrink-0 @2xl:order-3 @2xl:min-w-[104px]">
                                             <p className="text-[10px] uppercase tracking-wider text-slate-500">Subtotal</p>
                                             <p className={cn("font-bold text-base @md:text-xl tabular-nums tracking-[-0.01em]",
                                                 item.precioDescuento != null ? "text-amber-300" : "text-emerald-400")}>
@@ -1195,8 +1212,8 @@ function Sales() {
                                             de comprimir el nombre hasta lo ilegible. En ancho el
                                             contenedor se disuelve (contents) y cada control ordena
                                             solo. */}
-                                        <div className="flex items-center gap-2 w-full justify-end shrink-0 @md:contents">
-                                            <div className="text-left @md:text-right mr-auto @md:mr-0 min-w-0 @md:min-w-[104px] @md:order-1">
+                                        <div className="flex items-center gap-2 w-full justify-end shrink-0 @2xl:contents">
+                                            <div className="text-left @2xl:text-right mr-auto @2xl:mr-0 min-w-0 @2xl:min-w-[104px] @2xl:order-1">
                                                 <p className="text-[10px] uppercase tracking-wider text-slate-500">Precio c/u</p>
                                                 {item.precioDescuento != null && (
                                                     <p className="text-[11px] text-slate-500 tabular-nums line-through leading-none">
@@ -1209,7 +1226,7 @@ function Sales() {
                                                 </p>
                                             </div>
 
-                                            <div className="flex items-center bg-slate-950 rounded-lg border border-white/10 h-10 shrink-0 @md:order-2">
+                                            <div className="flex items-center bg-slate-950 rounded-lg border border-white/10 h-10 shrink-0 @2xl:order-2">
                                                 <button
                                                     onClick={() => updateQuantity(index, -1)}
                                                     disabled={item.cantidad <= 1}
@@ -1236,7 +1253,7 @@ function Sales() {
                                                 aria-label={`Descuento para ${item.nombreProducto}`}
                                                 aria-pressed={item.precioDescuento != null}
                                                 className={cn(
-                                                    "h-10 w-10 @md:w-14 shrink-0 grid place-items-center rounded-lg border-2 transition-colors @md:order-4", PRESS,
+                                                    "h-10 w-10 @md:w-14 shrink-0 grid place-items-center rounded-lg border-2 transition-colors @2xl:order-4", PRESS,
                                                     item.precioDescuento != null
                                                         ? "text-amber-200 bg-amber-500/25 border-amber-500"
                                                         : "text-amber-300 bg-amber-500/10 border-amber-500/40 hover:bg-amber-500/20 hover:border-amber-500"
@@ -1250,7 +1267,7 @@ function Sales() {
                                                 onClick={() => removeFromCart(index)}
                                                 aria-label={`Quitar ${item.nombreProducto}`}
                                                 className={cn(
-                                                    "@md:ml-1 @md:order-5 h-10 w-9 @md:w-10 shrink-0 grid place-items-center rounded-lg text-slate-400",
+                                                    "@2xl:ml-1 @2xl:order-5 h-10 w-9 @md:w-10 shrink-0 grid place-items-center rounded-lg text-slate-400",
                                                     "hover:text-red-400 hover:bg-red-500/10 transition-colors", PRESS
                                                 )}
                                             >

@@ -53,7 +53,7 @@ export function kpis(actual, previo) {
     const a = tot(actual), p = tot(previo)
     const ticketDiario = (s) => s.pedidos ? s.ventas / s.pedidos : 0
     return [
-        { clave: 'ventas',   label: 'Ventas',         valor: a.ventas,   delta: variacion(a.ventas, p.ventas),     serie: actual.map(s => s.ventas),   moneda: true },
+        { clave: 'ventas',   label: 'Ventas',         ayuda: 'Todo lo vendido, incluido fiado. No suma abonos de deuda.', valor: a.ventas,   delta: variacion(a.ventas, p.ventas),     serie: actual.map(s => s.ventas),   moneda: true },
         { clave: 'ganancia', label: 'Ganancia',       valor: a.ganancia, delta: variacion(a.ganancia, p.ganancia), serie: actual.map(s => s.ganancia), moneda: true },
         { clave: 'pedidos',  label: 'Pedidos',        valor: a.pedidos,  delta: variacion(a.pedidos, p.pedidos),   serie: actual.map(s => s.pedidos),  moneda: false },
         { clave: 'ticket',   label: 'Ticket promedio', valor: a.ticket,  delta: variacion(a.ticket, p.ticket),     serie: actual.map(ticketDiario),    moneda: true },

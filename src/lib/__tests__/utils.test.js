@@ -5,7 +5,8 @@ describe('utils', () => {
   it('formatCLP: pesos chilenos sin decimales, con punto de miles', () => {
     expect(formatCLP(0)).toBe('$0')
     expect(formatCLP(1234567)).toBe('$1.234.567')
-    expect(formatCLP(-1600)).toBe('$-1.600')
+    expect(formatCLP(-1600)).toBe('-$1.600')
+    expect(formatCLP(undefined)).toBe('$0')
     expect(formatCLP(999.6)).toBe('$1.000')
   })
   it('cn: combina y resuelve conflictos de Tailwind', () => {

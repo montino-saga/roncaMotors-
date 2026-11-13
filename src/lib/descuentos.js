@@ -55,3 +55,14 @@ export const descuentoItemsVenta = (sale) =>
     (sale?.productos || []).reduce((acc, p) => acc + (Number(p.descuento) || 0) * (Number(p.cantidad) || 0), 0)
 
 export const ventaConDescuento = (sale) => (Number(sale?.descuentoTotal) || 0) > 0 || descuentoItemsVenta(sale) > 0
+
+/**
+ * Descuento al total que queda tras una devolución: la misma proporción sobre
+ * el nuevo subtotal. Fijo en pesos devolvía de más (10% de $3.600 son $360;
+ * devuelta la mitad, el descuento debe ser $180, no seguir en $360).
+ */
+export function descuentoProporcional(descuento, subtotalAntes, subtotalDespues) {
+    const d = Number(descuento) || 0
+    if (!(d > 0) || !(subtotalAntes > 0) || !(subtotalDespues > 0)) return 0
+    return Math.min(subtotalDespues, Math.round(d * subtotalDespues / subtotalAntes))
+}

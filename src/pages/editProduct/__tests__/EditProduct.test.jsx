@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
-import { firestoreMock, escrituras, resetFirebaseMock } from '../../../test/firebaseMock'
+import { firestoreMock, escrituras, resetFirebaseMock, emitirCatalogo } from '../../../test/firebaseMock'
 
 vi.mock('firebase/firestore', () => firestoreMock)
 vi.mock('../../../db/firebase', () => ({ db: {}, auth: {}, storage: {} }))
@@ -69,5 +69,28 @@ describe('Editar producto', () => {
     montar()
     expect(await screen.findByText('lista de productos')).toBeInTheDocument()
     expect(toast.error).toHaveBeenCalledWith('Producto no encontrado')
+  })
+
+  it('no deja cambiar el código a uno que ya usa otro producto', async () => {
+    emitirCatalogo([{ id: 'otro', idProducto: 'FIL-1', nombreProducto: 'Filtro' }])
+    const user = userEvent.setup()
+    montar()
+    const codigo = await screen.findByDisplayValue('KIT-428')
+    await user.clear(codigo)
+    await user.type(codigo, 'FIL-1')
+    await user.click(screen.getByRole('button', { name: /Guardar/ }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Ese código ya lo usa otro producto', expect.anything()))
+    expect(escrituras.updates).toHaveLength(0)
+  })
+
+  it('precio web en 0 no bloquea el guardado (es opcional, como al crear)', async () => {
+    emitirCatalogo([])
+    firestoreMock.getDoc.mockResolvedValue({ exists: () => true, id: 'doc1', data: () => ({ ...PRODUCTO, precioVentaWeb: 0 }) })
+    const user = userEvent.setup()
+    montar()
+    await screen.findByDisplayValue('KIT-428')
+    await user.click(screen.getByRole('button', { name: /Guardar/ }))
+    await waitFor(() => expect(escrituras.updates).toHaveLength(1))
+    expect(escrituras.updates[0].data.precioVentaWeb).toBe(0)
   })
 })

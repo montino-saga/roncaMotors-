@@ -109,3 +109,13 @@ describe('venta guardada', () => {
     expect(ventaConDescuento({ productos: [], descuentoTotal: 0 })).toBe(false)
   })
 })
+
+describe('descuentoProporcional', () => {
+  it('mantiene el porcentaje sobre lo que queda tras devolver', async () => {
+    const { descuentoProporcional } = await import('../descuentos')
+    expect(descuentoProporcional(360, 3600, 2400)).toBe(240)   // 10% de lo que queda
+    expect(descuentoProporcional(360, 3600, 0)).toBe(0)
+    expect(descuentoProporcional(0, 3600, 2400)).toBe(0)
+    expect(descuentoProporcional(500, 1000, 300)).toBe(150)
+  })
+})

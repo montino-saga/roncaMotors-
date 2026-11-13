@@ -89,6 +89,18 @@ service cloud.firestore {
       allow write: if puedeEscribir();
     }
 
+    // Pedidos del local (encargos de clientes con abono).
+    match /pedidos/{id} {
+      allow read: if esAdmin();
+      allow write: if puedeEscribir();
+    }
+
+    // Gastos fijos: plantillas que la app usa para registrar un gasto cada mes.
+    match /gastosRecurrentes/{id} {
+      allow read: if esAdmin();
+      allow write: if puedeEscribir();
+    }
+
     // Perfil y rol de cada cuenta (id = uid de Auth).
     // Cada uno lee y registra su propio acceso (AuthContext); el resto, solo desarrollador.
     match /usuarios/{uid} {

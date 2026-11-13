@@ -98,7 +98,7 @@ function Analisis() {
     const deltaTotal = datos.totalPrevio > 0 ? ((datos.totalActual - datos.totalPrevio) / datos.totalPrevio) * 100 : null
 
     return (
-        <div className="flex flex-col gap-3 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
+        <div className="vista-fija flex flex-col gap-3">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
                 <div>
                     <h2 className="text-xl font-bold text-white flex items-center gap-2 leading-tight">
@@ -224,9 +224,9 @@ function Sparkline({ serie, color }) {
     )
 }
 
-function Kpi({ label, valor, delta, serie, moneda, color }) {
+function Kpi({ label, ayuda, valor, delta, serie, moneda, color }) {
     return (
-        <Card className="px-3.5 pt-3 pb-4 bg-slate-900/50 relative overflow-hidden flex flex-col justify-center min-h-0 min-w-0">
+        <Card title={ayuda} className="px-3.5 pt-3 pb-4 bg-slate-900/50 relative overflow-hidden flex flex-col justify-center min-h-0 min-w-0">
             <div className="flex items-start justify-between gap-2 relative z-10">
                 <p className="text-slate-400 text-[11px] uppercase font-bold tracking-wider truncate">{label}</p>
                 <Delta valor={delta} />

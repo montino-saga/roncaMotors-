@@ -2,7 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { firestoreMock, escrituras, emitirCatalogo, resetFirebaseMock } from '../../../test/firebaseMock'
+import { firestoreMock, escrituras, emitirCatalogo, resetFirebaseMock, coleccionesFake } from '../../../test/firebaseMock'
+import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('firebase/firestore', () => firestoreMock)
 vi.mock('../../../db/firebase', () => ({ db: {}, auth: {}, storage: {} }))
@@ -33,12 +34,13 @@ const total = () => screen.getByText('Total a Pagar').closest('div').parentEleme
 beforeEach(() => {
   resetFirebaseMock()
   emitirCatalogo(PRODUCTOS)
+  coleccionesFake.cash_registers = [{ id: 'caja1', status: 'open' }]
 })
 
 describe('Punto de venta', () => {
   it('escanea por código exacto sin pedir nada al servidor', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'abc123')
     expect(await screen.findByRole('heading', { name: 'Monster Blanco' })).toBeInTheDocument()
     expect(firestoreMock.getDocs).not.toHaveBeenCalled()
@@ -48,7 +50,7 @@ describe('Punto de venta', () => {
 
   it('código inexistente → error, carrito vacío', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'NOEXISTE')
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Producto no encontrado', expect.anything()))
     expect(screen.queryByRole('heading', { name: /Monster/ })).not.toBeInTheDocument()
@@ -56,7 +58,7 @@ describe('Punto de venta', () => {
 
   it('busca por nombre, navega con teclado y agrega con Enter', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     const input = screen.getByPlaceholderText(/Escanear o buscar/i)
     await user.type(input, 'mo')
     const lista = await screen.findByRole('listbox')
@@ -69,7 +71,7 @@ describe('Punto de venta', () => {
 
   it('agrega una sugerencia con click', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await user.type(screen.getByPlaceholderText(/Escanear o buscar/i), 'aceite')
     await user.click(await screen.findByRole('option'))
     expect(await screen.findByRole('heading', { name: 'Aceite 10W40' })).toBeInTheDocument()
@@ -77,14 +79,14 @@ describe('Punto de venta', () => {
 
   it('la lista no aparece si el término coincide exacto con un código', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await user.type(screen.getByPlaceholderText(/Escanear o buscar/i), 'ABC123')
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
   it('± cantidad, tope de stock y quitar', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'ABC123')
     await escanear(user, 'ABC123')
     const fila = filaDe('Monster Blanco')
@@ -105,7 +107,7 @@ describe('Punto de venta', () => {
 
   it('producto agotado abre el modal "sin stock"', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'AGOT')
     expect(await screen.findByRole('dialog', { name: 'Producto sin stock' })).toBeInTheDocument()
     expect(sounds.playError).toHaveBeenCalled()
@@ -113,7 +115,7 @@ describe('Punto de venta', () => {
 
   it('descuento por producto: precio final y quitar', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'ABC123')
     await user.click(screen.getByLabelText('Descuento para Monster Blanco'))
     const dlg = await screen.findByRole('dialog', { name: 'Descuento' })
@@ -135,13 +137,13 @@ describe('Punto de venta', () => {
 
   it('descuento por producto en %: valores inválidos deshabilitan Aplicar', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'ABC123')
     await user.click(screen.getByLabelText('Descuento para Monster Blanco'))
     const dlg = await screen.findByRole('dialog', { name: 'Descuento' })
     const aplicar = within(dlg).getByRole('button', { name: 'Aplicar' })
     expect(aplicar).toBeDisabled()
-    await user.type(within(dlg).getByPlaceholderText('10'), '150')
+    await user.type(within(dlg).getByPlaceholderText('Ej: 10'), '150')
     expect(aplicar).toBeDisabled()
     await user.click(within(dlg).getByRole('button', { name: '20%' }))
     expect(within(dlg).getByText('$1.200 c/u')).toBeInTheDocument()
@@ -150,7 +152,7 @@ describe('Punto de venta', () => {
 
   it('descuento al total (total final) y se recorta al vaciar', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     const btn = screen.getByRole('button', { name: /descuento al total/i })
     expect(btn).toBeDisabled()
     await escanear(user, 'ABC123')
@@ -173,7 +175,7 @@ describe('Punto de venta', () => {
 
   it('venta en efectivo: guarda totales con descuentos y descuenta stock con increment', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'ABC123')
     await escanear(user, 'ABC123')
     await user.click(screen.getByLabelText('Descuento para Monster Blanco'))
@@ -200,7 +202,7 @@ describe('Punto de venta', () => {
 
   it('pago con tarjeta y selector de método', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'ABC123')
     await user.click(screen.getByRole('button', { name: /Tarjeta/ }))
     expect(screen.getByRole('button', { name: /Tarjeta/ })).toHaveAttribute('aria-pressed', 'true')
@@ -210,7 +212,7 @@ describe('Punto de venta', () => {
 
   it('fiado abre el buscador de clientes', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'ABC123')
     await user.click(screen.getByRole('button', { name: /Fiado/ }))
     await user.click(screen.getByRole('button', { name: 'Seleccionar Cliente' }))
@@ -220,7 +222,7 @@ describe('Punto de venta', () => {
 
   it('vaciar carrito con deshacer', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'ABC123')
     await user.click(screen.getByRole('button', { name: 'Limpiar' }))
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Monster Blanco' })).not.toBeInTheDocument())
@@ -229,10 +231,10 @@ describe('Punto de venta', () => {
 
   it('el carrito sobrevive a recargar (localStorage)', async () => {
     const user = userEvent.setup()
-    const r = render(<Sales />)
+    const r = render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'ABC123')
     r.unmount()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Monster Blanco' })).toBeInTheDocument()
   })
 })
@@ -240,7 +242,7 @@ describe('Punto de venta', () => {
 describe('Punto de venta: vacío accionable', () => {
   it('"Buscar producto" lleva el foco al buscador', async () => {
     const user = userEvent.setup()
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await user.click(screen.getByRole('button', { name: 'Buscar producto' }))
     expect(screen.getByPlaceholderText(/Escanear o buscar/i)).toHaveFocus()
   })
@@ -253,10 +255,29 @@ describe('Punto de venta: optimismo', () => {
       set: () => {}, update: () => {}, delete: () => {},
       commit: () => Promise.reject(new Error('offline')),
     }))
-    render(<Sales />)
+    render(<MemoryRouter><Sales /></MemoryRouter>)
     await escanear(user, 'ABC123')
     await user.click(screen.getByRole('button', { name: 'Finalizar Venta' }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('La venta no se guardó', expect.anything()))
     expect(screen.getByRole('heading', { name: 'Monster Blanco' })).toBeInTheDocument()
+  })
+
+  it('caja cerrada: avisa y no deja cobrar', async () => {
+    coleccionesFake.cash_registers = []
+    const user = userEvent.setup()
+    render(<MemoryRouter><Sales /></MemoryRouter>)
+    await escanear(user, 'ABC123')
+    expect(screen.getByRole('link', { name: /Caja cerrada/ })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('button', { name: 'Finalizar Venta' })).toBeDisabled()
+    expect(escrituras.sets).toHaveLength(0)
+  })
+
+  it('cada ítem vendido guarda el id del documento del producto', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Sales /></MemoryRouter>)
+    await escanear(user, 'ABC123')
+    await user.click(screen.getByRole('button', { name: 'Finalizar Venta' }))
+    await waitFor(() => expect(escrituras.sets.find(x => x.ref.startsWith('sales/'))).toBeTruthy())
+    expect(escrituras.sets.find(x => x.ref.startsWith('sales/')).data.productos[0]).toMatchObject({ idProducto: 'ABC123', docProducto: 'd1' })
   })
 })

@@ -1,17 +1,19 @@
 import { toast } from 'sonner'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { usePersistedState } from '../../hooks/usePersistedState'
-import { collection, getDocs, orderBy, query, where, Timestamp } from 'firebase/firestore'
+import { esAbono, esIngresoReal, obtenerVentas, rangoDeVentas } from '../../lib/ventas'
+import { collection, getDocs, orderBy, query, Timestamp, where } from 'firebase/firestore'
 import { db } from '../../db/firebase'
 import { useCatalogo } from '../../lib/catalogo'
 import { Card } from '../../components/ui/Card'
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, Cell
+    BarChart, Bar
 } from 'recharts'
-import { 
-    DollarSign, ShoppingBag, TrendingUp, CreditCard, Calendar, 
-    User, Wallet, AlertCircle, Clock, Package, ArrowUpRight, ArrowDownRight
+import {
+    DollarSign, ShoppingBag, TrendingUp, CreditCard, Calendar,
+    User, Wallet, AlertCircle, Clock, Package, ArrowUpRight, ArrowDownRight,
+    Receipt, Users, Boxes, ChartNoAxesCombined
 } from 'lucide-react'
 import { cn, formatCLP } from '../../lib/utils'
 import { Skeleton, SkeletonCard, SkeletonKpis, SkeletonHeader } from '../../components/ui/Skeleton'
@@ -19,26 +21,37 @@ import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { useTheme } from '../../context/ThemeContext'
 import { useAppearance } from '../../context/AppearanceContext'
 import { chartTheme } from '../../lib/chartTheme'
+import { ClientesTab, DashboardTab, GastosTab, Kpi, Mini, ProductosTab } from './DashboardTabs'
+
+const isoLocal = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+const hoyISO = () => isoLocal(new Date())
+
+const METRICAS_VACIAS = {
+    totalCashFlow: 0,
+    totalCreditSales: 0,
+    totalProfit: 0,
+    totalOrders: 0,
+    averageOrderValue: 0,
+    profitMargin: 0,
+}
 
 function Dashboard() {
     const [sales, setSales] = useState([])
+    const [gastos, setGastos] = useState([])
+    const [clientes, setClientes] = useState([])
     const [loading, setLoading] = useState(true)
+    const [loadingClientes, setLoadingClientes] = useState(true)
     const mostrarSkeleton = useDelayedLoading(loading)
     const { settings } = useTheme()
     const ct = chartTheme(useAppearance().resolved)
     const { productos } = useCatalogo()
     // Bajo stock (< 5) sale del catálogo compartido: sin lecturas extra por rango.
     const lowStockCount = productos.filter(p => (p.cantidadProducto || 0) < 5).length
+    // La deuda es un saldo global, no del rango: sale de los clientes, no de las ventas.
+    // Solo lo que se debe: un saldo a favor no descuenta la deuda de otro cliente.
+    const deudaClientes = clientes.reduce((acc, c) => acc + Math.max(0, Number(c.currentDebt) || 0), 0)
     
-    const [metrics, setMetrics] = useState({
-        totalCashFlow: 0,
-        totalCreditSales: 0,
-        totalPendingDebt: 0,
-        totalProfit: 0,
-        totalOrders: 0,
-        averageOrderValue: 0,
-        profitMargin: 0,
-    })
+    const [metrics, setMetrics] = useState(METRICAS_VACIAS)
 
     const [chartsData, setChartsData] = useState({
         salesOverTime: [],
@@ -50,73 +63,95 @@ function Dashboard() {
     const [dateRange, setDateRange] = usePersistedState('roncamotors_dashboard_range', 'week')
     const [customStart, setCustomStart] = usePersistedState('roncamotors_dashboard_desde', '')
     const [customEnd, setCustomEnd] = usePersistedState('roncamotors_dashboard_hasta', '')
+    const [customStartDraft, setCustomStartDraft] = useState(customStart)
+    const [customEndDraft, setCustomEndDraft] = useState(customEnd)
+    const [activeTab, setActiveTab] = usePersistedState('roncamotors_dashboard_tab', 'ventas')
+    const maxDate = hoyISO()
+    const rangoPersonalizadoValido = Boolean(
+        customStartDraft && customEndDraft && customStartDraft <= customEndDraft &&
+        customStartDraft <= maxDate && customEndDraft <= maxDate
+    )
 
     useEffect(() => {
+        setCustomStartDraft(customStart)
+        setCustomEndDraft(customEnd)
+    }, [customStart, customEnd])
+
+    useEffect(() => {
+        const max = hoyISO()
+        if (customStart > max) setCustomStart(max)
+        if (customEnd > max) setCustomEnd(max)
+    }, [customStart, customEnd, setCustomStart, setCustomEnd])
+
+    // Un rango nulo = personalizado incompleto: ni se consulta ni se grafica.
+    const rango = useMemo(
+        () => (dateRange === 'custom' && (!customStart || !customEnd))
+            ? null
+            : rangoDeVentas(dateRange, new Date(), customStart, customEnd),
+        [dateRange, customStart, customEnd]
+    )
+
+    useEffect(() => {
+        let vivo = true
+        const cargarClientes = async () => {
+            try {
+                const snapshot = await getDocs(query(collection(db, 'clients')))
+                if (vivo) setClientes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })))
+            } catch (error) {
+                console.error('Error cargando clientes del dashboard:', error)
+                toast.error('No se pudieron cargar los clientes')
+            } finally {
+                if (vivo) setLoadingClientes(false)
+            }
+        }
+        cargarClientes()
+        return () => { vivo = false }
+    }, [])
+
+    useEffect(() => {
+        let vivo = true
         const fetchData = async () => {
             setLoading(true)
             try {
-                let startDate = new Date()
-                let endDate = new Date()
-                endDate.setHours(23, 59, 59, 999)
+                const [salesData, gastosSnapshot] = await Promise.all([
+                    obtenerVentas(rango.desde, rango.hasta),
+                    getDocs(query(
+                        collection(db, 'gastos'),
+                        where('fecha', '>=', Timestamp.fromDate(rango.desde)),
+                        where('fecha', '<=', Timestamp.fromDate(rango.hasta)),
+                        orderBy('fecha', 'desc'),
+                    )),
+                ])
 
-                // Calculate Date Range
-                if (dateRange === 'week') {
-                    startDate.setDate(startDate.getDate() - 7)
-                    startDate.setHours(0, 0, 0, 0)
-                } else if (dateRange === 'month') {
-                    startDate.setDate(1)
-                    startDate.setHours(0, 0, 0, 0)
-                } else if (dateRange === '3months') {
-                    startDate.setMonth(startDate.getMonth() - 3)
-                    startDate.setHours(0, 0, 0, 0)
-                } else if (dateRange === 'year') {
-                    startDate.setMonth(0, 1)
-                    startDate.setHours(0, 0, 0, 0)
-                } else if (dateRange === 'custom' && customStart && customEnd) {
-                    startDate = new Date(customStart + 'T00:00:00')
-                    endDate = new Date(customEnd + 'T23:59:59')
+                if (vivo) {
+                    setSales(salesData)
+                    setGastos(gastosSnapshot.docs.map(d => ({ id: d.id, ...d.data() })))
+                    processMetrics(salesData)
                 }
-
-                // 1. Fetch Sales
-                const qSales = query(
-                    collection(db, 'sales'),
-                    where('fechaVenta', '>=', Timestamp.fromDate(startDate)),
-                    where('fechaVenta', '<=', Timestamp.fromDate(endDate)),
-                    orderBy('fechaVenta', 'desc')
-                )
-                const salesSnapshot = await getDocs(qSales)
-                const salesData = []
-                salesSnapshot.forEach((doc) => {
-                    salesData.push({ id: doc.id, ...doc.data() })
-                })
-
-                // 2. Fetch Clients (Snapshot)
-                const qClients = query(collection(db, 'clients'))
-                const clientsSnapshot = await getDocs(qClients)
-                const clientsData = []
-                clientsSnapshot.forEach((doc) => {
-                    clientsData.push({ id: doc.id, ...doc.data() })
-                })
-
-                setSales(salesData)
-                processMetrics(salesData, clientsData)
             } catch (error) {
                 console.error("Error fetching dashboard data:", error)
-                toast.error('No se pudieron cargar los datos del dashboard')
+                if (vivo) toast.error('No se pudieron cargar los datos del dashboard')
             } finally {
-                setLoading(false)
+                if (vivo) setLoading(false)
             }
         }
 
-        if (dateRange !== 'custom' || (customStart && customEnd)) {
-            fetchData()
+        if (rango) fetchData()
+        else {
+            // Rango personalizado a medio escribir: nada que pedir todavía.
+            setSales([])
+            setGastos([])
+            setMetrics(METRICAS_VACIAS)
+            setChartsData({ salesOverTime: [], topProducts: [], hourlySales: [] })
+            setLoading(false)
         }
-    }, [dateRange, customStart, customEnd])
+        return () => { vivo = false }
+    }, [rango])
 
-    const processMetrics = (salesData, clientsData) => {
+    const processMetrics = (salesData) => {
         // --- Financial Metrics ---
         const totalCashFlow = salesData.reduce((acc, curr) => {
-            if (curr.tipoPago === 'efectivo' || curr.tipoPago === 'tarjeta' || curr.tipoPago === 'abono' || curr.isAbono) {
+            if (esIngresoReal(curr)) {
                 return acc + (curr.totalVenta || 0)
             }
             return acc
@@ -129,22 +164,20 @@ function Dashboard() {
             return acc
         }, 0)
 
-        const totalPendingDebt = clientsData.reduce((acc, curr) => acc + (curr.currentDebt || 0), 0)
-
         const totalProfit = salesData.reduce((acc, curr) => {
-            if (curr.tipoPago === 'abono' || curr.isAbono) return acc
+            if (esAbono(curr)) return acc
             return acc + (curr.totalGanancia || 0)
         }, 0)
 
-        const totalOrders = salesData.filter(s => s.tipoPago !== 'abono' && !s.isAbono).length
-        const averageOrderValue = totalOrders > 0 ? (totalCashFlow + totalCreditSales) / totalOrders : 0
-        const totalRevenueVolume = totalCashFlow + totalCreditSales
+        const totalOrders = salesData.filter(s => !esAbono(s)).length
+        const totalRevenueVolume = salesData.reduce((acc, sale) =>
+            esAbono(sale) ? acc : acc + (sale.totalVenta || 0), 0)
+        const averageOrderValue = totalOrders > 0 ? totalRevenueVolume / totalOrders : 0
         const profitMargin = totalRevenueVolume > 0 ? (totalProfit / totalRevenueVolume) * 100 : 0
         
         setMetrics({
             totalCashFlow,
             totalCreditSales,
-            totalPendingDebt,
             totalProfit,
             totalOrders,
             averageOrderValue,
@@ -157,7 +190,7 @@ function Dashboard() {
         const salesByDay = {}
         salesData.forEach(sale => {
             if (!sale.fechaVenta) return
-            if (sale.tipoPago === 'abono' || sale.isAbono) return
+            if (esAbono(sale)) return
 
             const date = sale.fechaVenta.toDate().toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' })
             if (!salesByDay[date]) salesByDay[date] = 0
@@ -175,7 +208,7 @@ function Dashboard() {
         // 2. Hourly Sales
         const hourlyCount = Array(24).fill(0)
         salesData.forEach(sale => {
-            if (!sale.fechaVenta) return
+            if (!sale.fechaVenta || esAbono(sale)) return
             const hour = sale.fechaVenta.toDate().getHours()
             hourlyCount[hour]++
         })
@@ -188,7 +221,7 @@ function Dashboard() {
         // 3. Top Products
         const productSales = {}
         salesData.forEach(sale => {
-            if (sale.tipoPago === 'abono' || sale.isAbono) return
+            if (esAbono(sale)) return
             sale.productos.forEach(prod => {
                 if (productSales[prod.nombreProducto]) {
                     productSales[prod.nombreProducto] += prod.cantidad
@@ -231,7 +264,7 @@ function Dashboard() {
     }
 
     return (
-        <div className="flex flex-col gap-3 lg:h-[calc(100dvh-2rem)] lg:min-h-0">
+        <div className="vista-fija flex flex-col gap-3">
             {/* --- Header & Filters --- */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
                 <div>
@@ -248,40 +281,66 @@ function Dashboard() {
                     >
                         <option value="week">Última Semana</option>
                         <option value="month">Este Mes</option>
-                        <option value="3months">3 Meses</option>
+                        <option value="3months">Últimos 3 Meses</option>
                         <option value="year">Este Año</option>
                         <option value="custom">Personalizado</option>
                     </select>
                     {dateRange === 'custom' && (
-                        <div className="flex items-center gap-1.5 pr-1">
+                        <div className="flex flex-wrap items-center gap-1.5 pr-1">
                             <input
+                                aria-label="Desde"
                                 type="date"
-                                value={customStart}
-                                max={customEnd || undefined}
-                                onChange={(e) => setCustomStart(e.target.value)}
+                                value={customStartDraft}
+                                max={maxDate}
+                                onChange={(e) => setCustomStartDraft(e.target.value)}
                                 className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus:border-primary [color-scheme:dark]"
                             />
                             <span className="text-slate-500">–</span>
                             <input
+                                aria-label="Hasta"
                                 type="date"
-                                value={customEnd}
-                                min={customStart || undefined}
-                                onChange={(e) => setCustomEnd(e.target.value)}
+                                value={customEndDraft}
+                                max={maxDate}
+                                onChange={(e) => setCustomEndDraft(e.target.value)}
                                 className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus:border-primary [color-scheme:dark]"
                             />
+                            <button
+                                type="button"
+                                disabled={!rangoPersonalizadoValido}
+                                onClick={() => {
+                                    setCustomStart(customStartDraft)
+                                    setCustomEnd(customEndDraft)
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-primary text-on-accent text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                Aplicar
+                            </button>
                         </div>
                     )}
                 </div>
             </div>
 
+            <div role="tablist" aria-label="Secciones del dashboard" className="flex w-full overflow-x-auto gap-1 rounded-xl border border-white/10 bg-slate-900/50 p-1 shrink-0">
+                <DashboardTab id="ventas" activeTab={activeTab} onSelect={setActiveTab} Icon={ChartNoAxesCombined}>Ventas</DashboardTab>
+                <DashboardTab id="productos" activeTab={activeTab} onSelect={setActiveTab} Icon={Boxes}>Productos</DashboardTab>
+                <DashboardTab id="gastos" activeTab={activeTab} onSelect={setActiveTab} Icon={Receipt}>Gastos</DashboardTab>
+                <DashboardTab id="clientes" activeTab={activeTab} onSelect={setActiveTab} Icon={Users}>Clientes</DashboardTab>
+            </div>
+
             {/* Bento lg (12 col): fila de cifras a su altura natural (auto) y dos
                 filas iguales para gráficas y listas. Así una cifra no estira su
                 tarjeta hasta dejar aire vacío. Bajo lg: 2 columnas, scroll normal. */}
-            <div className="grid grid-cols-2 lg:grid-cols-12 lg:grid-rows-[auto_1fr_1fr] gap-3 flex-1 lg:min-h-0">
+            {activeTab === 'ventas' && (
+            <div
+                role="tabpanel"
+                id="panel-ventas"
+                aria-labelledby="tab-ventas"
+                className="grid grid-cols-2 lg:grid-cols-12 lg:grid-rows-[auto_1fr_1fr] gap-3 flex-1 lg:min-h-0"
+            >
                 <Kpi label="Ingresos Reales" value={formatCLP(metrics.totalCashFlow)} tag="En Caja" color="emerald" Icon={Wallet} className="lg:col-span-2" />
                 <Kpi label="Ganancia Estimada" value={formatCLP(metrics.totalProfit)} tag={`Margen ${metrics.profitMargin.toFixed(1)}%`} color="purple" Icon={TrendingUp} className="lg:col-span-2" />
                 <Kpi label="Ventas Fiadas" value={formatCLP(metrics.totalCreditSales)} tag="Por Cobrar" color="red" Icon={CreditCard} className="lg:col-span-2" />
-                <Kpi label="Deuda Clientes" value={formatCLP(metrics.totalPendingDebt)} tag="Saldo Global" color="blue" Icon={User} className="lg:col-span-2" />
+                <Kpi label="Deuda Clientes" value={formatCLP(deudaClientes)} tag="Saldo Global" color="blue" Icon={User} className="lg:col-span-2" />
 
                 {/* Operativo: tres cifras rápidas en una tira */}
                 <Card className="col-span-2 lg:col-span-4 p-3 bg-slate-900/50 grid grid-cols-3 gap-2 items-center min-h-0">
@@ -391,7 +450,7 @@ function Dashboard() {
                                         <td className="p-2.5">
                                             <div className="flex flex-col">
                                                 <span className="text-sm text-white font-medium">
-                                                    {sale.productos.length} items
+                                                    {esAbono(sale) ? `Abono${sale.nombreCliente ? ` · ${sale.nombreCliente}` : ''}` : `${sale.productos.length} items`}
                                                 </span>
                                                 <span className="text-[10px] text-slate-500">
                                                     {sale.fechaVenta?.toDate().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})}
@@ -405,9 +464,9 @@ function Dashboard() {
                                                 </span>
                                                 <span className={cn(
                                                     "text-[10px] capitalize px-1.5 rounded-sm",
-                                                    sale.tipoPago === 'fiado' ? "bg-red-500/20 text-red-400" : "text-slate-400"
+                                                    sale.tipoPago === 'fiado' ? "bg-red-500/20 text-red-400" : esAbono(sale) ? "bg-emerald-500/15 text-emerald-300" : "text-slate-400"
                                                 )}>
-                                                    {sale.tipoPago}
+                                                    {esAbono(sale) ? `abono · ${sale.tipoPago}` : sale.tipoPago}
                                                 </span>
                                             </div>
                                         </td>
@@ -421,44 +480,10 @@ function Dashboard() {
                     </div>
                 </Card>
             </div>
-        </div>
-    )
-}
-
-const KPI_COLORES = {
-    emerald: { borde: "border-l-emerald-500", icono: "text-emerald-500", tag: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-    purple:  { borde: "border-l-purple-500",  icono: "text-purple-500",  tag: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
-    red:     { borde: "border-l-red-500",     icono: "text-red-500",     tag: "bg-red-500/10 text-red-400 border-red-500/20" },
-    blue:    { borde: "border-l-blue-500",    icono: "text-blue-500",    tag: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-}
-
-function Kpi({ label, value, tag, color, Icon, className }) {
-    const c = KPI_COLORES[color]
-    return (
-        <Card className={cn(
-            "px-3.5 py-3 border-l-4 bg-slate-900/50 relative overflow-hidden group hover:bg-slate-900/80 transition-all",
-            "flex flex-col justify-center min-h-0 min-w-0 gap-0.5", c.borde, className
-        )}>
-            <div className="flex items-center justify-between gap-2">
-                <p className="text-slate-400 text-[11px] uppercase font-bold tracking-wider truncate">{label}</p>
-                <Icon className={cn("w-4 h-4 shrink-0 opacity-70", c.icono)} />
-            </div>
-            <h3 className="text-xl font-bold text-white truncate leading-tight">{value}</h3>
-            <span className={cn("text-[10px] px-1.5 py-px rounded-full border self-start", c.tag)}>{tag}</span>
-        </Card>
-    )
-}
-
-function Mini({ Icon, label, value, alerta }) {
-    return (
-        <div className="flex items-center gap-2.5 min-w-0">
-            <div className={cn("p-1.5 rounded-lg shrink-0", alerta ? "bg-orange-500/20 text-orange-400" : "bg-slate-800 text-slate-300")}>
-                <Icon className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-                <p className="text-[11px] text-slate-400 truncate">{label}</p>
-                <p className={cn("text-sm font-bold truncate leading-tight", alerta ? "text-orange-400" : "text-white")}>{value}</p>
-            </div>
+            )}
+            {activeTab === 'productos' && <ProductosTab productos={productos} ventasTop={chartsData.topProducts} />}
+            {activeTab === 'gastos' && <GastosTab gastos={gastos} ingresos={metrics.totalCashFlow} />}
+            {activeTab === 'clientes' && <ClientesTab clientes={clientes} loading={loadingClientes} rango={rango} />}
         </div>
     )
 }

@@ -90,7 +90,7 @@ describe('Caja abierta', () => {
     await user.click(screen.getByRole('button', { name: 'Realizar Cierre de Caja' }))   // sin monto: deshabilitado
     const cierre = screen.getByText('Cierre de Caja (Corte Z)').closest('.card-entra')
     await user.type(within(cierre).getByPlaceholderText('0'), '24000')
-    expect(within(cierre).getByText('$-1.000')).toBeInTheDocument()
+    expect(within(cierre).getByText('-$1.000')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Realizar Cierre de Caja' }))
     await user.click(await screen.findByRole('button', { name: 'Confirmar Cierre' }))
     await waitFor(() => expect(escrituras.updates).toHaveLength(1))

@@ -12,6 +12,8 @@ let perfil
 vi.mock('../../../context/AuthContext', () => ({ useAuth: () => ({ user: { uid: 'u1' }, perfil }) }))
 import { toast } from 'sonner'
 import Gastos from '../Gastos'
+import { olvidarGastosFijos } from '../../../lib/gastosFijos'
+import { claveMes } from '../../../lib/gastos'
 
 const hoy = new Date()
 const enMes = (dia, meses = 0) => new Date(hoy.getFullYear(), hoy.getMonth() + meses, dia, 12)
@@ -25,7 +27,10 @@ beforeEach(() => {
     gasto('g2', enMes(1), 12000, 'arreglos', 'Vidrio vitrina'),
     gasto('g3', enMes(1, -1), 20000, 'arriendo', 'Arriendo local'),   // mes anterior
   ]
+  coleccionesFake.gastosRecurrentes = []
+  olvidarGastosFijos()
 })
+
 
 describe('Gastos', () => {
   it('KPIs del mes y comparación con el anterior', async () => {
@@ -125,6 +130,18 @@ describe('Gastos', () => {
     expect(screen.queryByText('Instagram ads')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mes siguiente' })).toBeEnabled()
   })
+
+  it('"Mes actual" solo aparece fuera del mes en curso y vuelve a él', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Gastos /></MemoryRouter>)
+    await screen.findByText('Instagram ads')
+    expect(screen.queryByRole('button', { name: /Mes actual/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Mes anterior' }))
+    await user.click(screen.getByRole('button', { name: 'Mes anterior' }))
+    await user.click(screen.getByRole('button', { name: /Mes actual/ }))
+    expect(await screen.findByText('Instagram ads')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Mes actual/ })).not.toBeInTheDocument()
+  })
 })
 
 describe('Gastos: lector', () => {
@@ -135,5 +152,94 @@ describe('Gastos: lector', () => {
     expect(screen.getByRole('button', { name: /Registrar gasto/ })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Gastos fijos', () => {
+  const plantilla = (id, extra = {}) => ({ id, nombre: 'Internet fibra', monto: 45000, dia: 5, categoria: 'servicios', activo: true, ultimoMes: claveMes(hoy), ...extra })
+
+  it('el check "Gasto fijo" crea la plantilla y el gasto enlazado en un batch', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Gastos /></MemoryRouter>)
+    await screen.findByText('Instagram ads')
+    await user.click(screen.getByRole('radio', { name: 'Servicios' }))
+    await user.type(screen.getByPlaceholderText('$0'), '45000')
+    await user.type(screen.getByPlaceholderText(/Campaña Instagram/), 'Internet fibra')
+    await user.click(screen.getByRole('radio', { name: /^Fijo/ }))
+    await user.click(screen.getByRole('button', { name: /Registrar gasto/ }))
+    await waitFor(() => expect(escrituras.sets).toHaveLength(2))
+    const [p, g] = escrituras.sets
+    expect(p.ref).toMatch(/^gastosRecurrentes\//)
+    expect(p.data).toMatchObject({ nombre: 'Internet fibra', monto: 45000, categoria: 'servicios', dia: hoy.getDate(), activo: true, ultimoMes: claveMes(hoy), userId: 'u1' })
+    expect(g.ref).toMatch(/^gastos\//)
+    expect(g.data).toMatchObject({ monto: 45000, categoria: 'servicios', descripcion: 'Internet fibra', recurrenteId: p.ref.split('/')[1] })
+    expect(escrituras.adds).toHaveLength(0)
+    expect(screen.getByRole('radio', { name: /^Variable/ })).toHaveAttribute('aria-checked', 'true')   // formulario limpio
+  })
+
+  it('un gasto fijo por pagar se marca pagado desde la lista', async () => {
+    coleccionesFake.gastosRecurrentes = [plantilla('r1')]
+    coleccionesFake.gastos.push({ ...gasto('g9', enMes(5), 45000, 'servicios', 'Internet fibra'), recurrenteId: 'r1', pagado: false })
+    const user = userEvent.setup()
+    render(<MemoryRouter><Gastos /></MemoryRouter>)
+    const fila = (await screen.findByText('Internet fibra')).closest('tr')
+    expect(within(fila).getByText('Por pagar')).toBeInTheDocument()
+    expect(screen.getByText('Gastos').parentElement).toHaveTextContent('1 por pagar')
+    await user.click(within(fila).getByRole('button', { name: 'Marcar pagado' }))
+    await waitFor(() => expect(escrituras.updates).toEqual([{ ref: 'gastos/g9', data: { pagado: true } }]))
+    expect(within(fila).queryByText('Por pagar')).not.toBeInTheDocument()
+  })
+
+  it('editar un gasto fijo muestra el check marcado; desmarcarlo desactiva la plantilla', async () => {
+    coleccionesFake.gastosRecurrentes = [plantilla('r1')]
+    coleccionesFake.gastos.push({ ...gasto('g9', enMes(5), 45000, 'servicios', 'Internet fibra'), recurrenteId: 'r1' })
+    const user = userEvent.setup()
+    render(<MemoryRouter><Gastos /></MemoryRouter>)
+    const fila = (await screen.findByText('Internet fibra')).closest('tr')
+    await user.click(within(fila).getByRole('button', { name: 'Editar' }))
+    expect(screen.getByRole('radio', { name: /^Fijo/ })).toHaveAttribute('aria-checked', 'true')
+    await user.click(screen.getByRole('radio', { name: /^Variable/ }))
+    await user.click(screen.getByRole('button', { name: /Guardar cambios/ }))
+    await waitFor(() => expect(escrituras.updates).toHaveLength(2))
+    expect(escrituras.updates).toContainEqual({ ref: 'gastosRecurrentes/r1', data: { activo: false } })
+    expect(escrituras.updates.find(u => u.ref === 'gastos/g9').data).toMatchObject({ monto: 45000 })
+  })
+
+  it('al entrar registra los fijos del mes que faltan', async () => {
+    const mesPasado = claveMes(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1))
+    coleccionesFake.gastosRecurrentes = [plantilla('r1', { ultimoMes: mesPasado })]
+    render(<MemoryRouter><Gastos /></MemoryRouter>)
+    await screen.findByText('Instagram ads')
+    expect(escrituras.sets).toHaveLength(1)
+    expect(escrituras.sets[0].data).toMatchObject({ recurrenteId: 'r1', monto: 45000, pagado: false })
+    expect(escrituras.updates).toEqual([{ ref: 'gastosRecurrentes/r1', data: { ultimoMes: claveMes(hoy) } }])
+  })
+
+  it('si gastosRecurrentes falla (rules sin desplegar) la lista de gastos carga igual', async () => {
+    const original = firestoreMock.getDocs.getMockImplementation()
+    firestoreMock.getDocs.mockImplementation(async (q) => {
+      if (q?.path === 'gastosRecurrentes') throw new Error('permission-denied')
+      return original(q)
+    })
+    try {
+      render(<MemoryRouter><Gastos /></MemoryRouter>)
+      expect(await screen.findByText('Instagram ads')).toBeInTheDocument()
+      expect(toast.error).not.toHaveBeenCalled()
+    } finally {
+      firestoreMock.getDocs.mockImplementation(original)
+    }
+  })
+
+  it('lector: no genera fijos ni ve el botón de marcar pagado', async () => {
+    perfil = { rol: 'lector' }
+    const mesPasado = claveMes(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1))
+    coleccionesFake.gastosRecurrentes = [plantilla('r1', { ultimoMes: mesPasado })]
+    coleccionesFake.gastos.push({ ...gasto('g9', enMes(5), 45000, 'servicios', 'Internet fibra'), recurrenteId: 'r1', pagado: false })
+    render(<MemoryRouter><Gastos /></MemoryRouter>)
+    const fila = (await screen.findByText('Internet fibra')).closest('tr')
+    expect(within(fila).getByText('Por pagar')).toBeInTheDocument()
+    expect(within(fila).queryByRole('button', { name: 'Marcar pagado' })).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /^Fijo/ })).toBeDisabled()
+    expect(escrituras.sets).toHaveLength(0)
   })
 })

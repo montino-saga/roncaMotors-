@@ -32,10 +32,12 @@ Detalle de campos en `SCHEMA.md`.
 |---|---|
 | `productos` | Catálogo y stock. Clave de negocio `idProducto` |
 | `clients` (+`movements`) | Clientes, deuda fiado, RUT, patente, `vehiculo`. `movements` espeja fiados/abonos con `saleId` |
-| `sales` | Ventas POS, fiados, abonos, descuentos |
+| `sales` | Ventas POS, fiados, abonos, descuentos. Ítems con `docProducto` (id del producto) para devolver stock |
 | `salesWeb` | Pedidos de la landing pública |
+| `pedidos` | Pedidos del local: cliente, productos, abonos y estado. No mueve stock, caja ni fiado |
 | `cash_registers` | Sesiones de caja |
-| `gastos` | Gastos del local |
+| `gastos` | Gastos del local. `recurrenteId` = generado por un gasto fijo; `pagado: false` = por pagar |
+| `gastosRecurrentes` | Plantillas de gastos fijos (check "Gasto fijo"). La app registra el gasto de cada mes al abrirse |
 | `usuarios/{uid}` | Perfil y rol de cada cuenta de Auth |
 | `vehiculos/{patente}` | Caché de patentes. Desactivada junto con `consultarPatente` |
 | `settings/global` | Datos de empresa y apariencia |

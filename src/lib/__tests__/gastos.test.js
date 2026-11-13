@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { partirPorMes, resumenGastos, filtrarGastos, inicioMes, finMes, mesAnterior, categoriaDe } from '../gastos'
+import { partirPorMes, resumenGastos, filtrarGastos, inicioMes, finMes, mesAnterior, categoriaDe, claveMes, vencimientoEn, mesesPendientes, gastoDeFijo } from '../gastos'
 
 const g = (fecha, monto, categoria = 'otro', descripcion = '') => ({ fecha: { toDate: () => new Date(fecha) }, monto, categoria, descripcion })
 
@@ -42,5 +42,30 @@ describe('filtrarGastos', () => {
     expect(filtrarGastos(lista, { texto: 'insta' })[0].monto).toBe(1)
     expect(filtrarGastos(lista, { texto: 'ARREGLOS' })[0].monto).toBe(2)
     expect(filtrarGastos(lista, {})).toHaveLength(2)
+  })
+})
+
+describe('gastos fijos', () => {
+  const hoy = new Date('2026-11-12T10:00')
+
+  it('claveMes y vencimiento (el 31 cae el último día en meses cortos)', () => {
+    expect(claveMes(hoy)).toBe('2026-11')
+    expect(vencimientoEn(31, new Date('2026-02-01T00:00')).getDate()).toBe(28)
+    expect(vencimientoEn(5, hoy).getDate()).toBe(5)
+  })
+
+  it('meses pendientes desde el último registrado hasta el actual', () => {
+    expect(mesesPendientes('2026-11', hoy)).toEqual([])
+    expect(mesesPendientes('2026-10', hoy).map(claveMes)).toEqual(['2026-11'])
+    expect(mesesPendientes('2026-08', hoy).map(claveMes)).toEqual(['2026-09', '2026-10', '2026-11'])
+    expect(mesesPendientes('2025-12', new Date('2026-01-03T10:00')).map(claveMes)).toEqual(['2026-01'])
+    expect(mesesPendientes(undefined, hoy).map(claveMes)).toEqual(['2026-11'])
+    expect(mesesPendientes('2020-01', hoy)).toHaveLength(12)
+  })
+
+  it('el gasto generado queda por pagar con los datos de la plantilla', () => {
+    const g = gastoDeFijo('r1', { nombre: 'Canva', monto: 12990, categoria: 'suscripciones', dia: 31 }, new Date('2026-11-01T00:00'))
+    expect(g).toMatchObject({ monto: 12990, categoria: 'suscripciones', descripcion: 'Canva', recurrenteId: 'r1', pagado: false })
+    expect(g.fecha.getDate()).toBe(30)
   })
 })

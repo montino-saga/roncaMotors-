@@ -28,7 +28,7 @@ describe('Clientes', () => {
   it('cards informativas', async () => {
     render(<MemoryRouter><Clients /></MemoryRouter>)
     await screen.findByText('Marcos')
-    const stat = (label) => within(screen.getByText(label).closest('div').parentElement).getByText((_, el) => el.classList.contains('font-mono'))
+    const stat = (label) => within(screen.getAllByText(label)[0].closest('div').parentElement).getByText((_, el) => el.classList.contains('font-mono'))
     expect(stat('Clientes')).toHaveTextContent('3')
     expect(stat('Con deuda')).toHaveTextContent('1')
     expect(stat('Deuda total')).toHaveTextContent('$336.468')
