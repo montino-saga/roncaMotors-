@@ -470,7 +470,7 @@ function SalesHistory() {
                             </select>
                         </div>
 
-                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10 flex-1 min-w-[140px]">
+                        <div data-tour="historial-rango" className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 h-10 flex-1 min-w-[140px]">
                             <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
                             <select
                                 value={dateRange}

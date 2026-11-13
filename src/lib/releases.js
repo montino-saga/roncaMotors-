@@ -5,6 +5,33 @@
 
 export const RELEASES = [
     {
+        version: '1.6',
+        fecha: '2026-11-13',
+        titulo: 'Pedidos del local, gastos fijos y caja más segura',
+        cambios: [
+            { tipo: 'nuevo', titulo: 'Pedidos del local', detalle: 'Nueva sección en el menú para los encargos del mostrador: eliges al cliente, anotas qué pidió (del catálogo o algo que no tienes en stock), cuánto abonó y la app calcula cuánto debe. Puedes sumar abonos y marcarlo entregado.' },
+            { tipo: 'nuevo', titulo: 'Gastos fijos y variables', detalle: 'Al anotar un gasto eliges si es Variable (una vez) o Fijo (mes a mes). Los fijos, como arriendo o suscripciones, se registran solos cada mes como "por pagar" y los marcas pagados con un toque.' },
+            { tipo: 'nuevo', titulo: 'Historial por fechas', detalle: 'En el Historial de ventas elige "Personalizado" y ve las ventas desde una fecha hasta otra.' },
+            { tipo: 'nuevo', titulo: 'Cierres anteriores', detalle: 'En Caja puedes revisar los últimos cierres: cuánto se esperaba, cuánto se contó y la diferencia.' },
+            { tipo: 'mejora', titulo: 'No se vende con la caja cerrada', detalle: 'El Punto de Venta avisa si la caja está cerrada y no deja cobrar hasta abrirla, así todo el efectivo queda en un cierre.' },
+            { tipo: 'mejora', titulo: 'Abonos sin errores', detalle: 'Al abonar se ve cuánto debe el cliente, hay un botón "Pagar todo" y no se puede abonar más de la deuda.' },
+            { tipo: 'mejora', titulo: 'Botón Devolver visible', detalle: 'En el detalle de una venta, "Devolver" ahora se ve siempre y ya no parece un botón de borrar. Si la venta tenía descuento, se devuelve en la misma proporción.' },
+            { tipo: 'mejora', titulo: 'Pantallas chicas y notebooks', detalle: 'Las vistas se adaptan mejor al celular y a pantallas bajas; si no cabe todo, aparece scroll en vez de apretarse.' },
+            { tipo: 'arreglo', titulo: 'Stock al devolver', detalle: 'Al eliminar o devolver una venta, el stock vuelve siempre al producto correcto, aunque dos productos compartan código. Al editar un producto ya no se puede repetir un código.' },
+            { tipo: 'arreglo', titulo: 'Montos y deudas', detalle: 'Los montos negativos se ven como "-$800", el saldo a favor de un cliente se muestra como tal y la deuda total coincide entre Clientes y Dashboard. Los abonos aparecen como "Abono" en el historial.' },
+        ],
+        tour: [
+            { ruta: '/pedidos', target: '[data-tour="nav/pedidos"]', menu: true, lado: 'right',
+              titulo: 'Pedidos del local', texto: 'Aquí anotas los encargos de tus clientes: qué pidieron, cuánto abonaron y cuánto les falta pagar.' },
+            { ruta: '/gastos', target: '[data-tour="gastos-tipo"]', lado: 'right',
+              titulo: 'Fijo o variable', texto: 'Marca "Fijo" en gastos que se repiten, como el arriendo: el próximo mes aparecerá solo como por pagar.' },
+            { ruta: '/historial', target: '[data-tour="historial-rango"]', lado: 'bottom',
+              titulo: 'Rango personalizado', texto: 'Elige "Personalizado" para ver las ventas entre dos fechas.' },
+            { ruta: '/', target: '[data-tour="caja-cierres"]', lado: 'bottom',
+              titulo: 'Cierres anteriores', texto: 'Revisa los últimos cierres de caja y si cuadraron.' },
+        ],
+    },
+    {
         version: '1.5',
         fecha: '2026-09-23',
         titulo: 'Vehículo del cliente y edición de ficha',

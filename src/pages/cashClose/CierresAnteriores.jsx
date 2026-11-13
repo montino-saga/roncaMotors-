@@ -25,7 +25,7 @@ export function CierresAnteriores({ cantidad = 10, className }) {
     }, [cantidad])
 
     return (
-        <section className={cn('w-full', className)} aria-label="Cierres anteriores">
+        <section className={cn('w-full', className)} aria-label="Cierres anteriores" data-tour="caja-cierres">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-2">
                 <History className="w-4 h-4 text-slate-400" /> Cierres anteriores
             </h3>

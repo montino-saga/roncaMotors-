@@ -276,7 +276,7 @@ function Gastos() {
                             </label>
                             <div>
                                 <span className="block text-xs text-slate-400 mb-1">Tipo de gasto</span>
-                                <div role="radiogroup" aria-label="Tipo de gasto" className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+                                <div role="radiogroup" aria-label="Tipo de gasto" data-tour="gastos-tipo" className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
                                     {[
                                         { fijo: false, label: 'Variable', sub: 'Espontáneo, una vez' },
                                         { fijo: true, label: 'Fijo', sub: 'Se repite mes a mes' },

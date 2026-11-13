@@ -304,7 +304,7 @@ function CashClose() {
                     </p>
                 </div>
                 <div className="flex gap-3 flex-wrap">
-                    <Button variant="secondary" onClick={() => setVerCierres(true)} className="inline-flex items-center gap-1.5">
+                    <Button variant="secondary" onClick={() => setVerCierres(true)} data-tour="caja-cierres" className="inline-flex items-center gap-1.5">
                         <History className="w-4 h-4" /> Cierres
                     </Button>
                 {!soloLectura && <>
