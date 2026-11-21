@@ -23,13 +23,15 @@ const env = Object.fromEntries(
         .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; })
 );
 
+// Al pedir la contraseña se oculta lo que se teclea, pero NO la etiqueta:
+// silenciar todo el output dejaba la línea en blanco y parecía colgado.
 function ask(question, { hidden = false } = {}) {
     const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
     if (!hidden) return new Promise((res) => rl.question(question, (a) => { rl.close(); res(a.trim()); }));
     return new Promise((res) => {
-        process.stdout.write(question);
-        rl.question("", (a) => { rl.close(); process.stdout.write("\n"); res(a.trim()); });
-        rl._writeToOutput = () => {};
+        const escribir = rl._writeToOutput.bind(rl);
+        rl._writeToOutput = (texto) => { if (texto.includes(question)) escribir(texto); };
+        rl.question(question, (a) => { rl.close(); console.log(); res(a.trim()); });
     });
 }
 
@@ -43,9 +45,27 @@ const app = initializeApp({
     appId: env.VITE_FIREBASE_APP_ID,
 });
 
-const email = await ask("  Email de desarrollador: ");
+console.log("  La cuenta y la contraseña son las que usas para entrar al panel,");
+console.log("  no las de Google ni las del CLI de Firebase.\n");
+
+// El correo también se puede pasar como argumento: npm run catalogo:web -- tu@correo.cl
+const email = process.argv[2]?.trim() || (await ask("  Email del panel: "));
 const password = await ask("  Contraseña: ", { hidden: true });
-await signInWithEmailAndPassword(getAuth(app), email, password);
+
+try {
+    await signInWithEmailAndPassword(getAuth(app), email, password);
+} catch (error) {
+    const porCodigo = {
+        "auth/invalid-credential": "Correo o contraseña incorrectos.",
+        "auth/invalid-email": "Ese correo no tiene formato válido.",
+        "auth/user-not-found": "Esa cuenta no existe en este proyecto.",
+        "auth/wrong-password": "Contraseña incorrecta.",
+        "auth/too-many-requests": "Demasiados intentos fallidos; espera unos minutos.",
+        "auth/network-request-failed": "Sin conexión con Firebase.",
+    };
+    console.error(`\n  No pude iniciar sesión: ${porCodigo[error.code] ?? error.message}\n`);
+    process.exit(1);
+}
 
 const backfill = httpsCallable(getFunctions(app, "southamerica-east1"), "backfillCatalogoWeb");
 
@@ -56,6 +76,11 @@ try {
     console.log(`  Borrados  : ${data.borrados}  (espejos de productos que ya no existen)\n`);
     process.exit(0);
 } catch (error) {
-    console.error(`\n  Falló: ${error.message}\n`);
+    if (error.code === "functions/permission-denied") {
+        console.error("\n  Esa cuenta no es desarrollador.");
+        console.error("  Cámbiale el rol en la consola de Firebase: Firestore → usuarios → tu uid → rol: 'desarrollador'.\n");
+    } else {
+        console.error(`\n  Falló: ${error.message}\n`);
+    }
     process.exit(1);
 }
