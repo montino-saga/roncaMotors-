@@ -53,10 +53,18 @@ service cloud.firestore {
     }
 
     match /productos/{id} {
-      // Si la landing pública necesitara leer
-      // el catálogo desde esta base, cambia read a: allow read: if true;
+      // NO abrir al público: aquí está precioOriginal (el costo de compra) y
+      // Firestore no filtra campos al leer. El sitio público lee catalogoWeb.
       allow read: if esAdmin();
       allow write: if puedeEscribir();
+    }
+
+    // Espejo público del catálogo, para el sitio WebRoncaMotors. Solo lleva
+    // campos públicos (nunca precioOriginal) y lo escribe únicamente la
+    // Cloud Function espejarCatalogoWeb con el Admin SDK.
+    match /catalogoWeb/{id} {
+      allow read: if true;
+      allow write: if false;
     }
 
     match /clients/{id} {

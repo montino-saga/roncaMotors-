@@ -15,7 +15,7 @@ Panel de taller/tienda (POS, inventario, clientes con fiado, caja, gastos, repor
    - `src/context/AuthContext.jsx` — sesión + `perfil` (rol)
    - `src/lib/usuarios.js` + `src/hooks/usePermisos.js` — roles y permisos
    - `src/db/firebase.js` — init Firebase
-   - `functions/index.js` — Cloud Function `crearUsuario` (invitación). `consultarPatente` (Boostr) está comentada: sin API key
+   - `functions/index.js` — Cloud Functions: `crearUsuario` (invitación), `espejarCatalogoWeb` (trigger del espejo público) y `backfillCatalogoWeb` (reconstruirlo). `consultarPatente` (Boostr) está comentada: sin API key
 
 ## Regla obligatoria: mantener docs al día
 Todo cambio que toque datos o permisos actualiza, **en el mismo cambio**:
@@ -31,6 +31,7 @@ Detalle de campos en `SCHEMA.md`.
 | Colección | Qué guarda |
 |---|---|
 | `productos` | Catálogo y stock. Clave de negocio `idProducto` |
+| `catalogoWeb` | **Espejo público** de `productos` (mismo id de doc) que lee el sitio web. Lo escribe solo la Function `espejarCatalogoWeb`. Nunca lleva `precioOriginal` |
 | `clients` (+`movements`) | Clientes, deuda fiado, RUT, patente, `vehiculo`. `movements` espeja fiados/abonos con `saleId` |
 | `sales` | Ventas POS, fiados, abonos, descuentos. Ítems con `docProducto` (id del producto) para devolver stock |
 | `salesWeb` | Pedidos de la landing pública |
@@ -43,6 +44,15 @@ Detalle de campos en `SCHEMA.md`.
 | `settings/global` | Datos de empresa y apariencia |
 
 Storage: `productos/` (imágenes).
+
+## Sitio público (`../WebRoncaMotors`)
+
+Repo aparte (Astro + islas React), segundo sitio de Hosting del mismo proyecto Firebase. Es de **solo lectura**: lee `catalogoWeb` por REST y los pedidos van por WhatsApp (`salesWeb` ya no recibe pedidos nuevos; la vista del panel queda como historial).
+
+- `productos` **no se abre al público**: guarda `precioOriginal` y las rules no filtran campos. Todo lo público pasa por el espejo.
+- `camposPublicos()` en `functions/index.js` es una lista explícita de campos: **nunca** un `{ ...data }`.
+- Tocar los campos de `productos` que viajan al espejo (nombre, marca, categoría, compatibilidad, precios, stock, imagen) obliga a revisar esa función y `SCHEMA.md`.
+- Carga inicial o resincronizar: `npm run catalogo:web` (llama a `backfillCatalogoWeb`, solo desarrollador).
 
 ## Roles y permisos
 Rol inicial al primer login: `admin`. Primer `desarrollador`: a mano en consola Firebase.

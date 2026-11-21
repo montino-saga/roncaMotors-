@@ -27,6 +27,7 @@ function EditProduct() {
         nombreProducto: '',
         marcaProducto: '',
         categoriaProducto: '',
+        compatibilidad: '',
         precioVentaLocal: '',
         precioVentaWeb: '',
         precioOriginal: '',
@@ -196,6 +197,19 @@ function EditProduct() {
                                                 onChange={handleChange}
                                             />
                                         </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-slate-300">
+                                            Compatibilidad <span className="text-slate-500">(se publica en la web)</span>
+                                        </label>
+                                        <Input
+                                            name="compatibilidad"
+                                            placeholder="Ej. Toyota Hilux 2016-2022, Nissan NP300"
+                                            maxLength={200}
+                                            value={producto.compatibilidad ?? ''}
+                                            onChange={handleChange}
+                                        />
                                     </div>
                                 </div>
                             </div>

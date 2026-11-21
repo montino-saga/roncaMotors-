@@ -8,7 +8,7 @@ export default defineConfig({
     alias: { 'virtual:pwa-register/react': fileURLToPath(new URL('./src/test/pwaRegisterStub.js', import.meta.url)) },
   },
   test: {
-    include: ['src/**/*.test.{js,jsx}'],
+    include: ['src/**/*.test.{js,jsx}', 'functions/**/*.test.js'],
     environment: 'node',
     // Los tests de componentes (.test.jsx) corren en jsdom.
     environmentMatchGlobs: [['src/**/*.test.jsx', 'jsdom']],

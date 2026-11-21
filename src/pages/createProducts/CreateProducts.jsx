@@ -169,6 +169,7 @@ const PRODUCTO_VACIO = {
   nombreProducto: '',
   marcaProducto: '',
   categoriaProducto: '',
+  compatibilidad: '',
   precioVentaLocal: '',
   precioVentaWeb: '',
   precioOriginal: '',
@@ -201,6 +202,7 @@ function CreateProducts() {
     nombreProducto: '',
     marcaProducto: '',
     categoriaProducto: '',
+    compatibilidad: '',
     precioVentaLocal: '',
     precioVentaWeb: '',
     precioOriginal: '',
@@ -440,6 +442,20 @@ function CreateProducts() {
                   name="categoriaProducto"
                   placeholder="Ej. Electrónica"
                   value={nuevoProducto.categoriaProducto}
+                  onChange={handleChange}
+                  className="bg-slate-950 h-10"
+                />
+              </div>
+
+              <div className="col-span-12">
+                <label className="text-xs font-medium text-slate-300 mb-1.5 block">
+                  Compatibilidad <span className="text-slate-500">(se publica en la web)</span>
+                </label>
+                <Input
+                  name="compatibilidad"
+                  placeholder="Ej. Toyota Hilux 2016-2022, Nissan NP300"
+                  maxLength={200}
+                  value={nuevoProducto.compatibilidad ?? ''}
                   onChange={handleChange}
                   className="bg-slate-950 h-10"
                 />

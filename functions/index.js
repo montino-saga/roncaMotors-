@@ -1,4 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
+import { onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { camposPublicos } from './catalogoWeb.js'
 // import { defineSecret } from 'firebase-functions/params'
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore, Timestamp } from 'firebase-admin/firestore'
@@ -116,5 +118,96 @@ export const crearUsuario = onCall(
             invitadoPor: request.auth.uid,
         })
         return { uid: usuario.uid }
+    }
+)
+
+// ──────────────────────────────────────────────────────────────────────────
+// Espejo público del catálogo (colección `catalogoWeb`)
+//
+// Lo lee el sitio público (../WebRoncaMotors) sin sesión. `productos` NO se
+// abre al público porque guarda `precioOriginal`, el costo de compra, y
+// Firestore no filtra campos al leer.
+//
+// REGLA QUE NO SE ROMPE: `camposPublicos` es una lista EXPLÍCITA. Nunca
+// hagas `{ ...data }` aquí: un spread publicaría el costo en silencio.
+// ──────────────────────────────────────────────────────────────────────────
+
+export const espejarCatalogoWeb = onDocumentWritten(
+    { document: 'productos/{id}', region: 'southamerica-east1', maxInstances: 10 },
+    async (event) => {
+        const id = event.params.id
+        const espejo = db.doc(`catalogoWeb/${id}`)
+
+        const antes = camposPublicos(event.data?.before?.data(), id)
+        const despues = camposPublicos(event.data?.after?.data(), id)
+
+        if (!despues) {
+            // Borrado o dejó de ser publicable. Borrar lo que no existe no falla.
+            await espejo.delete()
+            return
+        }
+
+        // Editar solo el costo o el precio local no cambia nada público: así
+        // no gastamos una escritura en cada ajuste de margen.
+        if (antes && JSON.stringify(antes) === JSON.stringify(despues)) return
+
+        await espejo.set({ ...despues, actualizadoEn: Timestamp.now() })
+    }
+)
+
+/**
+ * Reconstruye el espejo completo: carga inicial y botón de pánico si quedó
+ * desincronizado. Escribe con Admin SDK, que es el único camino: las rules
+ * dejan `catalogoWeb` cerrado a escritura para todo el mundo.
+ */
+export const backfillCatalogoWeb = onCall(
+    { region: 'southamerica-east1', cors: true, maxInstances: 1, timeoutSeconds: 300 },
+    async (request) => {
+        if (!request.auth) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.')
+        const quien = await db.doc(`usuarios/${request.auth.uid}`).get()
+        if (quien.data()?.rol !== 'desarrollador') {
+            throw new HttpsError('permission-denied', 'Solo un desarrollador puede reconstruir el catálogo web.')
+        }
+
+        const productos = await db.collection('productos').get()
+        const espejoActual = await db.collection('catalogoWeb').select().get()
+        const sobrantes = new Set(espejoActual.docs.map((d) => d.id))
+
+        let espejados = 0
+        let saltados = 0
+        let lote = db.batch()
+        let pendientes = 0
+
+        const confirmar = async (forzar = false) => {
+            if (pendientes >= 400 || (forzar && pendientes > 0)) {
+                await lote.commit()
+                lote = db.batch()
+                pendientes = 0
+            }
+        }
+
+        for (const doc of productos.docs) {
+            sobrantes.delete(doc.id)
+            const publico = camposPublicos(doc.data(), doc.id)
+            if (!publico) {
+                saltados += 1
+                lote.delete(db.doc(`catalogoWeb/${doc.id}`))
+            } else {
+                espejados += 1
+                lote.set(db.doc(`catalogoWeb/${doc.id}`), { ...publico, actualizadoEn: Timestamp.now() })
+            }
+            pendientes += 1
+            await confirmar()
+        }
+
+        // Espejos de productos que ya no existen.
+        for (const id of sobrantes) {
+            lote.delete(db.doc(`catalogoWeb/${id}`))
+            pendientes += 1
+            await confirmar()
+        }
+        await confirmar(true)
+
+        return { espejados, saltados, borrados: sobrantes.size }
     }
 )

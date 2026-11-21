@@ -3,12 +3,13 @@
 Base: **Cloud Firestore**, modo documento/colección. Proyectos (`.firebaserc`): `roncamotors-58fd3` (default, producción), `base-de-prueba-cee39` (prueba), `local-js-d7712` (viejo). La app toma el proyecto de `VITE_FIREBASE_PROJECT_ID`.
 Este schema fue extraído del código fuente (todas las lecturas/escrituras en `src/` y `functions/`), ya que Firestore no tiene esquema fijo.
 
-Última actualización: 2026-11-13
+Última actualización: 2026-11-21
 
 ## Diagrama general
 
 ```
 productos/{id}                  ← catálogo e inventario
+catalogoWeb/{id}                ← espejo PÚBLICO de productos (lo lee el sitio web)
 clients/{id}                    ← clientes (fiado, RUT, patente, vehículo)
   └─ movements/{id}             ← historial de compras/abonos del cliente
 sales/{id}                      ← ventas del POS (incluye fiados y abonos)
@@ -42,9 +43,38 @@ Catálogo e inventario. Escriben: CreateProducts, EditProduct, ProductList (rest
 | `precioProducto` | number | **Legacy**: siempre se guarda igual a `precioVentaLocal` (compatibilidad con código antiguo) |
 | `cantidadProducto` | number | Stock actual. Se descuenta al vender y se restaura al devolver/eliminar ventas |
 | `imagenProducto` | string | URL de descarga de la imagen en Storage (puede ser `''`) |
+| `compatibilidad` | string | Vehículos compatibles, texto libre separado por comas (`'Toyota Hilux 2016-2022, Nissan NP300'`), máx. 200 caracteres. Puede ser `''`. **Se publica** en `catalogoWeb` y alimenta la búsqueda "por vehículo" del sitio. No existe en productos anteriores a este campo |
 | `afectoIva` | boolean | `true` (por defecto) si `precioVentaLocal`/`precioVentaWeb` incluyen IVA 19%; `false` si el producto está exento. Los precios guardados son SIEMPRE el monto final que paga el cliente; el neto se deriva dividiendo entre 1,19. Productos anteriores a este campo se tratan como afectos |
 
 > Nota: el ID del documento es autogenerado por Firestore; `idProducto` es el identificador de negocio y las demás pantallas buscan por ese campo.
+
+---
+
+## Colección `catalogoWeb`
+
+**Espejo público de `productos`.** Lo lee el sitio web (`../WebRoncaMotors`) sin sesión; el panel no lo toca. Lo escribe **solo** la Cloud Function `espejarCatalogoWeb` (trigger `onDocumentWritten` sobre `productos`, Admin SDK), y `backfillCatalogoWeb` lo reconstruye entero.
+
+**ID del doc = ID del doc de `productos`** (relación 1:1).
+
+Existe porque `productos` guarda `precioOriginal` (el costo de compra) y Firestore **no filtra campos al leer**: abrir `productos` al público regalaría el margen.
+
+| Campo | Tipo | Origen |
+|---|---|---|
+| `idProducto` | string | `productos.idProducto` |
+| `slug` | string | `slugify(nombreProducto)` (60 car.) + `-` + `slugify(idProducto)`; es la URL de la ficha (`/repuestos/{slug}`) |
+| `nombre` | string | `nombreProducto` |
+| `marca` | string | `marcaProducto` (`''` si no tiene) |
+| `categoria` | string | `categoriaProducto` tal cual; el sitio la mapea a sus 8 tarjetas por alias y lo que no calza cae en "Otros" |
+| `compatibilidad` | string | `compatibilidad` (máx. 200 car.) |
+| `precio` | number | `precioVentaWeb`; si es 0 o falta, `precioVentaLocal` |
+| `stock` | number | `cantidadProducto` |
+| `imagen` | string | `imagenProducto` (URL de Storage, ya pública) |
+| `busqueda` | string | `nombre + marca + idProducto + categoria + compatibilidad` en minúsculas y sin tildes; el sitio filtra con esto en memoria |
+| `actualizadoEn` | Timestamp | Fecha de la última escritura del espejo |
+
+> **Nunca** se copian `precioOriginal`, `precioVentaLocal`, `precioProducto` ni `afectoIva`. `camposPublicos()` en `functions/index.js` es una lista **explícita**: un `{ ...data }` ahí publicaría el costo en silencio.
+> **No se publica** un producto sin `nombreProducto` o con precio 0: dejar `precioVentaWeb` y `precioVentaLocal` en 0 borra su espejo (y volver a subirlo lo republica).
+> El trigger compara los campos públicos antes de escribir: editar solo el costo no gasta una escritura. Vender sí (mueve el stock), y esa es la razón de que el stock del sitio esté al día.
 
 ---
 
@@ -308,6 +338,7 @@ Un solo documento: `settings/global`. Lo lee ThemeContext con listener en tiempo
 | `productos`, `clients` (+`movements`), `sales`, `cash_registers`, `gastos`, `gastosRecurrentes`, `pedidos`, `settings` | con sesión | con sesión y no `lector` |
 | `usuarios/{uid}` | el propio doc; todos si es `desarrollador` | `create`: solo el propio, con `rol: 'admin'`. `update`: el propio sin tocar `rol`, u otro si es `desarrollador`. `delete`: `desarrollador`, no a sí mismo |
 | `vehiculos` | con sesión | nadie (solo Admin SDK) |
+| `catalogoWeb` | **pública (sin sesión)** | nadie (solo Admin SDK vía `espejarCatalogoWeb`) |
 | `salesWeb` | con sesión | `create`: público con validación (`pedidoWebValido`); `update`/`delete`: con sesión y no `lector` |
 | resto | nadie | nadie |
 
@@ -321,6 +352,7 @@ Un solo documento: `settings/global`. Lo lee ThemeContext con listener en tiempo
 - `sales.idCliente` → doc de `clients`; `movements.saleId` → doc de `sales` (relación espejo: cada fiado/abono existe en ambos lados y el código los mantiene sincronizados manualmente al editar/eliminar o cambiar el método de pago).
 - `usuarios/{uid}` ↔ cuenta de Firebase Auth con el mismo `uid`. `usuarios.invitadoPor` → otro `usuarios/{uid}`. `gastos.userId`, `gastosRecurrentes.userId` y `cash_registers.userId` apuntan a ese `uid`.
 - `gastos.recurrenteId` → doc de `gastosRecurrentes`. Si se borra la plantilla a mano desde la consola, sus gastos quedan con un `recurrenteId` huérfano (se muestran normal; al editarlos el check sale desmarcado).
+- `catalogoWeb/{id}` ↔ `productos/{id}` (mismo ID de documento). La Function mantiene el espejo en cada alta, edición, venta y borrado; el sitio web nunca lee `productos`.
 - `vehiculos/{patente}` ↔ `clients.patente` sin guion. La ficha copia los datos a `clients.vehiculo`; la caché no se vuelve a leer después.
 - Las búsquedas de productos desde ventas/devoluciones se hacen por `sales.productos[].idProducto` → `productos.idProducto` (campo de negocio, no el ID del documento).
 - **Denormalización intencional**: nombre/precios del producto y nombre del cliente se copian dentro de la venta para que el historial sea inmutable.
